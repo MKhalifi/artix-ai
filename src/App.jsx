@@ -1,4 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css'; // Import Math CSS
+
 import { 
   Cpu, Send, Terminal, Zap, Activity, Shield, Code, MessageSquare, 
   Settings, Maximize2, Minimize2, Plus, FileText, X, Save, Copy, 
@@ -7,16 +13,16 @@ import {
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v5.2: Polished Text & Logic
- * * FIXES:
- * - Markdown Parsing: Now converts **text** into Bold Emerald text.
- * - Logic Stability: Lowered temperature to 0.7 to reduce typos/hallucinations.
- * - Mobile & UI: Kept all previous responsive fixes.
+ * ARTIX-AI v5.3: Math & Markdown Core
+ * * UPGRADES:
+ * - Integrated 'react-markdown' for perfect **bold**, *italic*, and list rendering.
+ * - Added LaTeX Math support ($E=mc^2$) via Katex.
+ * - Retained all mobile/responsive fixes.
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "5.2.0-Stable";
+const VERSION = "5.3.0-MathCore";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -36,6 +42,10 @@ Do not describe the image in text, just output the token.
 
 const SYSTEM_PROMPT_BASE = `You are ARTIX-AI, a high-performance artificial intelligence. 
 Your traits: PRECISION, IDENTITY (ARTIX), CAPABILITY (Coding, Vision, Creation).
+
+FORMATTING RULES:
+1. Use standard Markdown for text (**bold**, *italic*, etc).
+2. Use LaTeX for ALL math. Inline: $E=mc^2$. Block: $$ \sum_{i=0}^n x_i $$.
 ${CANVAS_PROTOCOL}
 ${IMAGE_GEN_PROTOCOL}`;
 
@@ -84,7 +94,7 @@ const generateResponse = async (history, userInput, attachment, isDeepThink) => 
           contents: contents,
           systemInstruction: { parts: [{ text: systemInstruction }] },
           generationConfig: {
-            temperature: isDeepThink ? 0.6 : 0.7, // Lowered to 0.7 for better accuracy
+            temperature: isDeepThink ? 0.6 : 0.7, 
             maxOutputTokens: 8192,
           }
         })
@@ -145,7 +155,7 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
     setDisplayedText('');
     index.current = 0;
     
-    // Instant render for code protocols to avoid glitches
+    // Render instantly if short or contains protocols to avoid breaking markup
     if (text.includes(':::') || text.length < 50) {
         setDisplayedText(text);
         if(onComplete) onComplete();
@@ -164,42 +174,51 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
     return () => clearInterval(timer);
   }, [text, speed, onComplete]);
 
-  const formatText = (input) => {
-    // 1. Split by Code Blocks (```)
-    const parts = input.split(/(```[\s\S]*?```)/g);
-    
-    return parts.map((part, i) => {
-      if (part.startsWith('```')) {
-        const content = part.replace(/```.*\n?/, '').replace(/```$/, '');
-        return (
-          <div key={i} className="my-4 rounded-lg bg-black/40 border border-emerald-500/10 overflow-hidden font-mono text-xs sm:text-sm shadow-inner">
-             <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5">
-               <span className="text-xs text-emerald-500/50 font-medium tracking-wider">CODE_BLOCK</span>
-             </div>
-            <pre className="p-4 overflow-x-auto text-emerald-100/90 custom-scrollbar"><code>{content}</code></pre>
+  // Custom Renderer for Code Blocks to match Obsidian Design
+  const CodeBlock = ({ inline, className, children, ...props }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    return !inline ? (
+      <div className="my-4 rounded-lg bg-black/40 border border-emerald-500/10 overflow-hidden font-mono text-xs sm:text-sm shadow-inner">
+        <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5">
+          <span className="text-xs text-emerald-500/50 font-medium tracking-wider">
+            {match ? match[1].toUpperCase() : 'CODE'}
+          </span>
+          <div className="flex space-x-1.5">
+             <div className="w-2 h-2 rounded-full bg-white/10"></div>
+             <div className="w-2 h-2 rounded-full bg-white/10"></div>
           </div>
-        );
-      }
-
-      // 2. Split by Bold Markers (**)
-      // The regex matches **content** and captures the content
-      const boldParts = part.split(/\*\*(.*?)\*\*/g);
-      
-      return (
-        <span key={i} className="whitespace-pre-wrap">
-          {boldParts.map((subPart, j) => {
-            // Odd indices are the captured bold text
-            if (j % 2 === 1) {
-              return <strong key={j} className="text-emerald-400 font-bold tracking-wide">{subPart}</strong>;
-            }
-            return subPart;
-          })}
-        </span>
-      );
-    });
+        </div>
+        <div className="p-4 overflow-x-auto text-emerald-100/90 custom-scrollbar">
+          <code className={className} {...props}>
+            {children}
+          </code>
+        </div>
+      </div>
+    ) : (
+      <code className="bg-emerald-900/30 text-emerald-300 px-1 py-0.5 rounded text-xs font-mono" {...props}>
+        {children}
+      </code>
+    );
   };
 
-  return <div>{formatText(displayedText)}</div>;
+  return (
+    <div className="markdown-content text-[13px] sm:text-[14px] leading-7 font-light tracking-wide text-zinc-200">
+      <ReactMarkdown
+        children={displayedText}
+        remarkPlugins={[remarkMath, remarkGfm]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          code: CodeBlock,
+          // Custom styles for basic elements
+          strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />,
+          a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />,
+          ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+          ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+        }}
+      />
+    </div>
+  );
 };
 
 // --- MAIN APPLICATION ---
@@ -207,7 +226,7 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
 export default function ArtixClone() {
   // Session State
   const [sessions, setSessions] = useState([
-    { id: 'init', title: 'System Initialization', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} online. Mobile Matrix Loaded.` }], date: new Date() }
+    { id: 'init', title: 'System Initialization', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} online. Math Module Loaded.` }], date: new Date() }
   ]);
   const [activeSessionId, setActiveSessionId] = useState('init');
   
@@ -396,7 +415,7 @@ export default function ArtixClone() {
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span>
-              <span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v5.2</span>
+              <span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v5.3</span>
             </div>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white">
@@ -503,9 +522,7 @@ export default function ArtixClone() {
                        {msg.role === 'system' ? (
                           <div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>
                        ) : (
-                         <div className="text-[13px] sm:text-[14px] leading-7 font-light tracking-wide overflow-x-auto">
-                            {msg.role === 'model' ? <Typewriter text={msg.content} speed={1} /> : <div className="whitespace-pre-wrap break-words">{msg.content}</div>}
-                         </div>
+                         <Typewriter text={msg.content} speed={1} />
                        )}
                      </div>
                   </div>
