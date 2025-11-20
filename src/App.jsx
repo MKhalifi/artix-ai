@@ -22,7 +22,7 @@ import {
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "5.3.0-MathCore";
+const VERSION = "5.3.0-Core";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -40,7 +40,7 @@ If the user explicitly asks to generate/create/draw an image, you MUST output a 
 Do not describe the image in text, just output the token.
 `;
 
-const SYSTEM_PROMPT_BASE = `You are ARTIX-AI, a high-performance artificial intelligence. 
+const SYSTEM_PROMPT_BASE = `You are ARTIX, a high-performance artificial intelligence. 
 Your traits: PRECISION, IDENTITY (ARTIX), CAPABILITY (Coding, Vision, Creation).
 
 FORMATTING RULES:
