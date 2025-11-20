@@ -7,16 +7,16 @@ import {
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v5.1: Mobile Native Optimization
+ * ARTIX-AI v5.2: Polished Text & Logic
  * * FIXES:
- * - Viewport Locking: Uses h-[100dvh] and fixed positioning to prevent "whole screen scroll".
- * - Safe Areas: Respects the notch (top) and home bar (bottom) using env().
- * - Keyboard Handling: Optimized input area to stay visible.
+ * - Markdown Parsing: Now converts **text** into Bold Emerald text.
+ * - Logic Stability: Lowered temperature to 0.7 to reduce typos/hallucinations.
+ * - Mobile & UI: Kept all previous responsive fixes.
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "5.1.0-MobileNative";
+const VERSION = "5.2.0-Stable";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -48,20 +48,32 @@ const SYSTEM_PROMPT_DEEP_THINK = `
 `;
 
 // --- API HANDLERS ---
-// (Identical logic to previous versions, kept for functionality)
 
 const generateResponse = async (history, userInput, attachment, isDeepThink) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-  const systemInstruction = isDeepThink ? SYSTEM_PROMPT_BASE + "\n" + SYSTEM_PROMPT_DEEP_THINK : SYSTEM_PROMPT_BASE;
+  
+  const systemInstruction = isDeepThink 
+    ? SYSTEM_PROMPT_BASE + "\n" + SYSTEM_PROMPT_DEEP_THINK 
+    : SYSTEM_PROMPT_BASE;
+
   const contents = history.map(msg => {
     if (msg.image) return { role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] };
     return { role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] };
   });
+
   const currentParts = [{ text: userInput }];
+  
   if (attachment) {
-    currentParts.push({ inlineData: { mimeType: attachment.type, data: attachment.data } });
+    currentParts.push({
+      inlineData: {
+        mimeType: attachment.type,
+        data: attachment.data 
+      }
+    });
   }
+
   contents.push({ role: 'user', parts: currentParts });
+
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
@@ -71,13 +83,18 @@ const generateResponse = async (history, userInput, attachment, isDeepThink) => 
         body: JSON.stringify({
           contents: contents,
           systemInstruction: { parts: [{ text: systemInstruction }] },
-          generationConfig: { temperature: isDeepThink ? 0.6 : 0.85, maxOutputTokens: 8192 }
+          generationConfig: {
+            temperature: isDeepThink ? 0.6 : 0.7, // Lowered to 0.7 for better accuracy
+            maxOutputTokens: 8192,
+          }
         })
       }
     );
+
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "System Warning: No coherence detected.";
+
   } catch (error) {
     console.error("Core Failure:", error);
     return `[SYSTEM ERROR]: Connection to Neural Core failed. ${error.message}`;
@@ -86,20 +103,32 @@ const generateResponse = async (history, userInput, attachment, isDeepThink) => 
 
 const generateImage = async (prompt) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instances: [{ prompt: prompt }], parameters: { sampleCount: 1 } })
+        body: JSON.stringify({
+          instances: [{ prompt: prompt }],
+          parameters: { sampleCount: 1 }
+        })
       }
     );
+
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
+    
+    if (data.error) {
+      console.error("API Error Details:", data.error);
+      throw new Error(data.error.message || "API refused generation");
+    }
+    
     const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
-    if (!base64Image) throw new Error("No image data returned");
+    if (!base64Image) throw new Error("No image data returned from API");
+    
     return `data:image/png;base64,${base64Image}`;
+
   } catch (error) {
     console.error("Generative Engine Failure:", error);
     return null;
@@ -111,14 +140,18 @@ const generateImage = async (prompt) => {
 const Typewriter = ({ text, speed = 2, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
   const index = useRef(0);
+
   useEffect(() => {
     setDisplayedText('');
     index.current = 0;
+    
+    // Instant render for code protocols to avoid glitches
     if (text.includes(':::') || text.length < 50) {
         setDisplayedText(text);
         if(onComplete) onComplete();
         return;
     }
+
     const timer = setInterval(() => {
       if (index.current < text.length) {
         setDisplayedText((prev) => prev + text.charAt(index.current));
@@ -132,7 +165,9 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
   }, [text, speed, onComplete]);
 
   const formatText = (input) => {
+    // 1. Split by Code Blocks (```)
     const parts = input.split(/(```[\s\S]*?```)/g);
+    
     return parts.map((part, i) => {
       if (part.startsWith('```')) {
         const content = part.replace(/```.*\n?/, '').replace(/```$/, '');
@@ -145,9 +180,25 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
           </div>
         );
       }
-      return <span key={i} className="whitespace-pre-wrap">{part}</span>;
+
+      // 2. Split by Bold Markers (**)
+      // The regex matches **content** and captures the content
+      const boldParts = part.split(/\*\*(.*?)\*\*/g);
+      
+      return (
+        <span key={i} className="whitespace-pre-wrap">
+          {boldParts.map((subPart, j) => {
+            // Odd indices are the captured bold text
+            if (j % 2 === 1) {
+              return <strong key={j} className="text-emerald-400 font-bold tracking-wide">{subPart}</strong>;
+            }
+            return subPart;
+          })}
+        </span>
+      );
     });
   };
+
   return <div>{formatText(displayedText)}</div>;
 };
 
@@ -185,10 +236,15 @@ export default function ArtixClone() {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64Data = e.target.result.split(',')[1]; 
-      setAttachment({ type: file.type, data: base64Data, preview: e.target.result });
+      setAttachment({
+        type: file.type,
+        data: base64Data,
+        preview: e.target.result
+      });
     };
     reader.readAsDataURL(file);
   };
@@ -224,21 +280,27 @@ export default function ArtixClone() {
   const processResponse = async (text) => {
     const artifactRegex = /:::artifact:(.*?):(.*?)\n([\s\S]*?):::/;
     const artifactMatch = text.match(artifactRegex);
+    
     if (artifactMatch) {
       const [fullMatch, filename, lang, content] = artifactMatch;
       setCanvasContent({ title: filename.trim(), language: lang.trim(), content: content.trim() });
       setCanvasOpen(true);
       text = text.replace(fullMatch, `\n> [SYSTEM]: Artifact generated. See Canvas panel (${filename.trim()}).\n`);
     }
+
     const imageRegex = /:::image_gen:(.*?):::/;
     const imageMatch = text.match(imageRegex);
+
     if (imageMatch) {
       const [fullMatch, prompt] = imageMatch;
       let cleanText = text.replace(fullMatch, "");
       try {
         const imageUrl = await generateImage(prompt);
         if (imageUrl) {
-           return { text: cleanText + `\n> [GEN_ENGINE]: Image generated successfully.`, generatedImage: imageUrl };
+           return { 
+             text: cleanText + `\n> [GEN_ENGINE]: Image generated successfully.`, 
+             generatedImage: imageUrl 
+           };
         } else {
            return { text: cleanText + `\n> [GEN_ENGINE]: Generation failed.` };
         }
@@ -246,28 +308,54 @@ export default function ArtixClone() {
         return { text: cleanText + `\n> [GEN_ENGINE]: Generation Error.` };
       }
     }
+
     return { text: text };
   };
 
   const handleSend = async () => {
     if ((!input.trim() && !attachment) || loading) return;
+
     const currentInput = input;
     const currentAttachment = attachment;
+    
     setInput('');
     clearAttachment();
     setLoading(true);
+
     setSessions(prev => prev.map(s => {
       if (s.id === activeSessionId) {
         const isFirst = s.messages.length <= 1;
         const newTitle = isFirst ? (currentInput.length > 20 ? currentInput.slice(0, 20) + '...' : currentInput || 'Image Analysis') : s.title;
-        return { ...s, title: newTitle, messages: [...s.messages, { role: 'user', content: currentInput, image: currentAttachment ? currentAttachment.preview : null }] };
+        return {
+          ...s,
+          title: newTitle,
+          messages: [...s.messages, { 
+            role: 'user', 
+            content: currentInput, 
+            image: currentAttachment ? currentAttachment.preview : null 
+          }]
+        };
       }
       return s;
     }));
+
     const history = activeSession.messages.filter(m => m.role !== 'system');
     const rawResponse = await generateResponse(history, currentInput, currentAttachment, deepThink);
     const processedData = await processResponse(rawResponse);
-    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, { role: 'model', content: processedData.text, generatedImage: processedData.generatedImage }] } : s));
+
+    setSessions(prev => prev.map(s => 
+      s.id === activeSessionId 
+        ? { 
+            ...s, 
+            messages: [...s.messages, { 
+              role: 'model', 
+              content: processedData.text,
+              generatedImage: processedData.generatedImage 
+            }] 
+          } 
+        : s
+    ));
+
     setLoading(false);
   };
 
@@ -285,13 +373,9 @@ export default function ArtixClone() {
   // --- RENDER ---
 
   return (
-    // ROOT CONTAINER:
-    // - h-[100dvh] locks height to dynamic viewport (fixes address bar jump)
-    // - fixed inset-0 prevents body scroll
-    // - overscroll-none prevents rubber-banding
     <div className="flex h-[100dvh] w-full bg-black text-emerald-50 font-sans overflow-hidden fixed inset-0 overscroll-none selection:bg-emerald-500/30">
       
-      {/* MOBILE BACKDROP - High Z-Index */}
+      {/* MOBILE BACKDROP */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden"
@@ -303,7 +387,7 @@ export default function ArtixClone() {
       <div className={`
         fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out
         ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'}
-        pt-[env(safe-area-inset-top)] /* Respect Top Notch */
+        pt-[env(safe-area-inset-top)]
       `}>
         <div className="h-16 flex-shrink-0 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-[#0a0a0a] to-transparent justify-between">
           <div className="flex items-center space-x-3">
@@ -312,7 +396,7 @@ export default function ArtixClone() {
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span>
-              <span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v5.1</span>
+              <span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v5.2</span>
             </div>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white">
@@ -361,11 +445,9 @@ export default function ArtixClone() {
       {/* MAIN CHAT */}
       <div className="flex-1 flex flex-col min-w-0 bg-black relative">
         
-        {/* HEADER - Z-Index 50 - With Safe Area Top Padding */}
         <header className="absolute top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
           <div className="h-16 flex items-center justify-between px-4 md:px-6">
             <div className="flex items-center space-x-3 md:space-x-4">
-              {/* Mobile Menu Trigger - Larger Touch Target */}
               <button 
                 onClick={() => setSidebarOpen(!sidebarOpen)} 
                 className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer active:bg-white/10 rounded-full"
@@ -390,9 +472,7 @@ export default function ArtixClone() {
           </div>
         </header>
 
-        {/* SCROLLABLE CONTENT - Added Padding Top/Bottom for Header/Input */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar overscroll-contain">
-          {/* Spacers for fixed header/footer + safe areas */}
           <div className="h-[calc(4rem+env(safe-area-inset-top))] w-full"></div>
           
           <div className="px-3 sm:px-8 md:px-16 space-y-6 pb-4">
@@ -442,11 +522,10 @@ export default function ArtixClone() {
             <div ref={messagesEndRef} />
           </div>
           
-          {/* Input Spacer */}
           <div className="h-[calc(5rem+env(safe-area-inset-bottom))] w-full"></div>
         </div>
 
-        {/* INPUT AREA - Fixed Bottom + Safe Area Padding */}
+        {/* INPUT AREA */}
         <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-30 pointer-events-none flex justify-center bg-gradient-to-t from-black via-black to-transparent pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="w-full max-w-3xl pointer-events-auto relative group">
             {attachment && (
@@ -487,7 +566,7 @@ export default function ArtixClone() {
         </div>
       </div>
 
-      {/* CANVAS - RESPONSIVE & Fullscreen on Mobile */}
+      {/* CANVAS */}
       <div className={`
         fixed inset-0 z-[100] bg-[#080808] flex flex-col transition-all duration-300
         md:static md:inset-auto md:z-20 md:border-l md:border-white/5 md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)]
