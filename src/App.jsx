@@ -3,31 +3,35 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
-import 'katex/dist/katex.min.css'; // Import Math CSS
+import 'katex/dist/katex.min.css';
 
 import { 
   Cpu, Send, Terminal, Zap, Activity, Shield, Code, MessageSquare, 
   Settings, Maximize2, Minimize2, Plus, FileText, X, Save, Copy, 
   Layout, Clock, Trash2, ChevronRight, Image as ImageIcon, 
-  Paperclip, Loader2, Download, Menu
+  Paperclip, Loader2, Download, Menu, Box, RotateCw, CheckCircle2, AlertCircle,
+  Play, Eye, EyeOff
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v5.3: Math & Markdown Core
- * * UPGRADES:
- * - Integrated 'react-markdown' for perfect **bold**, *italic*, and list rendering.
- * - Added LaTeX Math support ($E=mc^2$) via Katex.
- * - Retained all mobile/responsive fixes.
+ * ARTIX-AI v6.0: Live Preview Engine
+ * * NEW FEATURES:
+ * - Integrated Live Preview Window for HTML/JS artifacts.
+ * - Split-view toggle (Code vs. Preview).
+ * - Sandboxed iframe execution for security.
+ * - Kept all previous Rodin 3D fixes intact.
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "5.3.0-Core";
+const VERSION = "6.0.0-LivePreview";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
 [PROTOCOL: CANVAS]
-If generating code or long text, use:
+If the user asks for code, a website, a game, or a component, output it inside an artifact block.
+If it is a web app, use 'html' language and put CSS/JS inside the same file.
+
 :::artifact:{filename}:{language}
 {content}
 :::
@@ -35,19 +39,28 @@ If generating code or long text, use:
 
 const IMAGE_GEN_PROTOCOL = `
 [PROTOCOL: IMAGE GENERATION]
-If the user explicitly asks to generate/create/draw an image, you MUST output a generation token:
+If the user asks to generate an image (2D), use:
 :::image_gen:{detailed_prompt}:::
-Do not describe the image in text, just output the token.
 `;
 
-const SYSTEM_PROMPT_BASE = `You are ARTIX, a high-performance artificial intelligence. 
-Your traits: PRECISION, IDENTITY (ARTIX), CAPABILITY (Coding, Vision, Creation).
+const THREE_D_PROTOCOL = `
+[PROTOCOL: 3D GENERATION]
+If the user explicitly asks to generate a 3D model/asset/object, use:
+:::3d_gen:{detailed_prompt}:::
+Do not output markdown or text descriptions, just the token.
+`;
+
+const SYSTEM_PROMPT_BASE = `You are ARTIX-AI, a high-performance artificial intelligence. 
+Your traits: PRECISION, IDENTITY (ARTIX), CAPABILITY (Coding, Vision, Creation, 3D Modeling).
 
 FORMATTING RULES:
 1. Use standard Markdown for text (**bold**, *italic*, etc).
 2. Use LaTeX for ALL math. Inline: $E=mc^2$. Block: $$ \sum_{i=0}^n x_i $$.
+
+You have access to the Hyper3D Rodin Engine.
 ${CANVAS_PROTOCOL}
-${IMAGE_GEN_PROTOCOL}`;
+${IMAGE_GEN_PROTOCOL}
+${THREE_D_PROTOCOL}`;
 
 const SYSTEM_PROMPT_DEEP_THINK = `
 [MODE: DEEP THINK]
@@ -145,6 +158,191 @@ const generateImage = async (prompt) => {
   }
 };
 
+// --- 3D ENGINE COMPONENT ---
+
+const ThreeDGenerator = ({ prompt }) => {
+  const [status, setStatus] = useState('init'); 
+  const [taskData, setTaskData] = useState({ subKey: null, uuid: null }); 
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [progress, setProgress] = useState(0);
+  
+  const HYPER3D_KEY = "vibecoding"; 
+  const PROXY_BASE = "/rodin-proxy"; 
+
+  useEffect(() => {
+    const createTask = async () => {
+      setStatus('creating');
+      setProgress(5);
+      try {
+        const formData = new FormData();
+        formData.append('prompt', prompt); 
+        
+        const response = await fetch(`${PROXY_BASE}/api/v2/rodin`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${HYPER3D_KEY}` },
+          body: formData
+        });
+        
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Creation Failed (${response.status}): ${text.substring(0, 50)}`);
+        }
+
+        const data = await response.json();
+        const subKey = data.jobs?.subscription_key || data.subscription_key;
+        const uuid = data.uuid || (data.jobs?.uuids && data.jobs.uuids[0]);
+        
+        if (subKey && uuid) {
+          setTaskData({ subKey, uuid });
+          setStatus('polling');
+          setProgress(10);
+        } else {
+          throw new Error("API returned success but IDs are missing.");
+        }
+      } catch (err) {
+        console.error("3D Init Error:", err);
+        setError(err.message);
+        setStatus('error');
+      }
+    };
+
+    if (prompt) createTask();
+  }, [prompt]);
+
+  useEffect(() => {
+    if (status !== 'polling' || !taskData.subKey) return;
+
+    let pollCount = 0;
+    const MAX_POLLS = 600; 
+
+    const poll = async () => {
+      pollCount++;
+      if (pollCount > MAX_POLLS) {
+          setError("Timed out waiting for generation.");
+          setStatus('error');
+          return;
+      }
+
+      try {
+        const response = await fetch(`${PROXY_BASE}/api/v2/status`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${HYPER3D_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ subscription_key: taskData.subKey })
+        });
+        
+        if (!response.ok) return; 
+
+        const data = await response.json();
+        const payload = data.data || data;
+        const currentStatus = payload.status;
+        const progressVal = payload.progress;
+
+        if (typeof progressVal === 'number') setProgress(progressVal);
+        else setProgress(prev => Math.min(prev + 0.5, 95)); 
+        
+        if (currentStatus === 'succeed' || currentStatus === 'completed') {
+            setProgress(100);
+            await fetchDownloadUrl(taskData.uuid);
+        } else if (currentStatus === 'failed') {
+            setError("Generation failed on server");
+            setStatus('error');
+        }
+      } catch (err) {
+        console.warn("Polling error:", err);
+      }
+    };
+
+    const fetchDownloadUrl = async (uuid) => {
+        try {
+            const res = await fetch(`${PROXY_BASE}/api/v2/download`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${HYPER3D_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ task_uuid: uuid })
+            });
+            
+            if (!res.ok) throw new Error(`Download API Error: ${res.status}`);
+            const dlData = await res.json();
+            const payload = dlData.data || dlData;
+            const glbUrl = payload.model_urls?.glb;
+            const videoUrl = payload.video_url;
+
+            if (glbUrl) {
+                setResult({ model_url: glbUrl, video_url: videoUrl });
+                setStatus('success');
+            } else {
+                throw new Error("GLB URL missing from download response");
+            }
+        } catch (e) { 
+            console.error("Download fetch failed", e);
+            setError(e.message);
+            setStatus('error');
+        }
+    };
+
+    const interval = setInterval(poll, 5000); 
+    return () => clearInterval(interval);
+  }, [status, taskData]);
+
+  if (status === 'error') return (
+    <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-400 text-xs font-mono break-all">
+        <AlertCircle size={16} className="flex-shrink-0" />
+        <span>{error}</span>
+    </div>
+  );
+
+  if (status === 'creating' || status === 'polling') return (
+    <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 flex flex-col gap-3 text-blue-300 font-mono text-xs w-full max-w-md">
+        <div className="flex items-center gap-3">
+            <Loader2 size={16} className="animate-spin text-blue-400" />
+            <div className="flex flex-col">
+                <span className="font-bold tracking-wider">ARTIX ENGINE</span>
+                <span className="opacity-70">{status === 'creating' ? 'Initializing...' : `Rendering Asset (${Math.round(progress)}%)`}</span>
+            </div>
+        </div>
+        <div className="h-1.5 w-full bg-blue-900/30 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-400 transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
+        </div>
+    </div>
+  );
+
+  if (status === 'success') return (
+    <div className="group relative overflow-hidden rounded-xl bg-black border border-emerald-500/30 max-w-md">
+        <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start z-10">
+             <div className="flex items-center gap-2 px-2 py-1 rounded bg-emerald-500/20 backdrop-blur border border-emerald-500/30">
+                 <Box size={12} className="text-emerald-400" />
+                 <span className="text-[10px] font-bold text-emerald-300">HYPER3D</span>
+             </div>
+             <a href={result?.model_url || "#"} download className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur rounded-lg text-white transition-colors">
+                 <Download size={16} />
+             </a>
+        </div>
+        <div className="aspect-square bg-zinc-900 flex items-center justify-center">
+            {result?.video_url ? (
+                <video src={result.video_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+            ) : (
+                 <div className="flex flex-col items-center text-zinc-500">
+                     <Box size={48} className="mb-2 opacity-50" />
+                     <span className="text-xs">Preview Unavailable</span>
+                 </div>
+            )}
+        </div>
+        <div className="p-3 bg-[#0c0c0c] border-t border-white/5 flex justify-between items-center">
+            <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[150px]">{prompt}</span>
+            <span className="text-[10px] text-emerald-500 flex items-center gap-1"><CheckCircle2 size={10} /> Ready</span>
+        </div>
+    </div>
+  );
+
+  return null;
+};
+
 // --- UI COMPONENTS ---
 
 const Typewriter = ({ text, speed = 2, onComplete }) => {
@@ -155,7 +353,6 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
     setDisplayedText('');
     index.current = 0;
     
-    // Render instantly if short or contains protocols to avoid breaking markup
     if (text.includes(':::') || text.length < 50) {
         setDisplayedText(text);
         if(onComplete) onComplete();
@@ -174,7 +371,6 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
     return () => clearInterval(timer);
   }, [text, speed, onComplete]);
 
-  // Custom Renderer for Code Blocks to match Obsidian Design
   const CodeBlock = ({ inline, className, children, ...props }) => {
     const match = /language-(\w+)/.exec(className || '');
     return !inline ? (
@@ -209,7 +405,6 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
         rehypePlugins={[rehypeKatex]}
         components={{
           code: CodeBlock,
-          // Custom styles for basic elements
           strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />,
           a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />,
           ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
@@ -224,20 +419,18 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
 // --- MAIN APPLICATION ---
 
 export default function ArtixClone() {
-  // Session State
   const [sessions, setSessions] = useState([
-    { id: 'init', title: 'System Initialization', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} online. Math Module Loaded.` }], date: new Date() }
+    { id: 'init', title: 'System Initialization', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} online. Hyper3D Matrix Connected.` }], date: new Date() }
   ]);
   const [activeSessionId, setActiveSessionId] = useState('init');
-  
-  // Input State
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [deepThink, setDeepThink] = useState(false);
   const [attachment, setAttachment] = useState(null); 
   
-  // Layout State
+  // NEW: Preview Mode State
   const [canvasOpen, setCanvasOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false); // Toggle between Code/Preview
   const [canvasContent, setCanvasContent] = useState({ title: 'untitled.txt', language: 'text', content: '' });
   const [sidebarOpen, setSidebarOpen] = useState(false); 
 
@@ -245,7 +438,6 @@ export default function ArtixClone() {
   const messagesEndRef = useRef(null);
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
-  // Responsive Init
   useEffect(() => {
     if (window.innerWidth >= 768) {
       setSidebarOpen(true);
@@ -255,15 +447,10 @@ export default function ArtixClone() {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64Data = e.target.result.split(',')[1]; 
-      setAttachment({
-        type: file.type,
-        data: base64Data,
-        preview: e.target.result
-      });
+      setAttachment({ type: file.type, data: base64Data, preview: e.target.result });
     };
     reader.readAsDataURL(file);
   };
@@ -299,27 +486,28 @@ export default function ArtixClone() {
   const processResponse = async (text) => {
     const artifactRegex = /:::artifact:(.*?):(.*?)\n([\s\S]*?):::/;
     const artifactMatch = text.match(artifactRegex);
-    
     if (artifactMatch) {
       const [fullMatch, filename, lang, content] = artifactMatch;
       setCanvasContent({ title: filename.trim(), language: lang.trim(), content: content.trim() });
       setCanvasOpen(true);
+      
+      // Auto-switch to preview if it looks like HTML
+      if (lang.trim().toLowerCase() === 'html') {
+          setPreviewMode(true);
+      }
+      
       text = text.replace(fullMatch, `\n> [SYSTEM]: Artifact generated. See Canvas panel (${filename.trim()}).\n`);
     }
 
     const imageRegex = /:::image_gen:(.*?):::/;
     const imageMatch = text.match(imageRegex);
-
     if (imageMatch) {
       const [fullMatch, prompt] = imageMatch;
       let cleanText = text.replace(fullMatch, "");
       try {
         const imageUrl = await generateImage(prompt);
         if (imageUrl) {
-           return { 
-             text: cleanText + `\n> [GEN_ENGINE]: Image generated successfully.`, 
-             generatedImage: imageUrl 
-           };
+           return { text: cleanText + `\n> [GEN_ENGINE]: Image generated successfully.`, generatedImage: imageUrl };
         } else {
            return { text: cleanText + `\n> [GEN_ENGINE]: Generation failed.` };
         }
@@ -328,15 +516,23 @@ export default function ArtixClone() {
       }
     }
 
+    const threeDRegex = /:::3d_gen:(.*?):::/;
+    const threeDMatch = text.match(threeDRegex);
+    if (threeDMatch) {
+        const [fullMatch, prompt] = threeDMatch;
+        return { 
+            text: text.replace(fullMatch, ""), 
+            threeDPrompt: prompt 
+        };
+    }
+
     return { text: text };
   };
 
   const handleSend = async () => {
     if ((!input.trim() && !attachment) || loading) return;
-
     const currentInput = input;
     const currentAttachment = attachment;
-    
     setInput('');
     clearAttachment();
     setLoading(true);
@@ -344,16 +540,8 @@ export default function ArtixClone() {
     setSessions(prev => prev.map(s => {
       if (s.id === activeSessionId) {
         const isFirst = s.messages.length <= 1;
-        const newTitle = isFirst ? (currentInput.length > 20 ? currentInput.slice(0, 20) + '...' : currentInput || 'Image Analysis') : s.title;
-        return {
-          ...s,
-          title: newTitle,
-          messages: [...s.messages, { 
-            role: 'user', 
-            content: currentInput, 
-            image: currentAttachment ? currentAttachment.preview : null 
-          }]
-        };
+        const newTitle = isFirst ? (currentInput.length > 20 ? currentInput.slice(0, 20) + '...' : currentInput || 'Analysis') : s.title;
+        return { ...s, title: newTitle, messages: [...s.messages, { role: 'user', content: currentInput, image: currentAttachment ? currentAttachment.preview : null }] };
       }
       return s;
     }));
@@ -368,8 +556,9 @@ export default function ArtixClone() {
             ...s, 
             messages: [...s.messages, { 
               role: 'model', 
-              content: processedData.text,
-              generatedImage: processedData.generatedImage 
+              content: processedData.text, 
+              generatedImage: processedData.generatedImage,
+              threeDPrompt: processedData.threeDPrompt 
             }] 
           } 
         : s
@@ -389,12 +578,9 @@ export default function ArtixClone() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeSession.messages, loading]);
 
-  // --- RENDER ---
-
   return (
     <div className="flex h-[100dvh] w-full bg-black text-emerald-50 font-sans overflow-hidden fixed inset-0 overscroll-none selection:bg-emerald-500/30">
       
-      {/* MOBILE BACKDROP */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden"
@@ -402,7 +588,6 @@ export default function ArtixClone() {
         />
       )}
 
-      {/* SIDEBAR */}
       <div className={`
         fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out
         ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'}
@@ -415,7 +600,7 @@ export default function ArtixClone() {
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span>
-              <span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v5.3</span>
+              <span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v6.0 Live</span>
             </div>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white">
@@ -461,7 +646,6 @@ export default function ArtixClone() {
         </div>
       </div>
 
-      {/* MAIN CHAT */}
       <div className="flex-1 flex flex-col min-w-0 bg-black relative">
         
         <header className="absolute top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
@@ -518,13 +702,19 @@ export default function ArtixClone() {
                        </div>
                      )}
 
-                     <div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>
-                       {msg.role === 'system' ? (
-                          <div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>
-                       ) : (
-                         <Typewriter text={msg.content} speed={1} />
-                       )}
-                     </div>
+                     {msg.threeDPrompt && (
+                        <ThreeDGenerator prompt={msg.threeDPrompt} />
+                     )}
+
+                     {msg.content && (
+                        <div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>
+                        {msg.role === 'system' ? (
+                            <div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>
+                        ) : (
+                            <Typewriter text={msg.content} speed={1} />
+                        )}
+                        </div>
+                     )}
                   </div>
                 </div>
               </div>
@@ -542,7 +732,6 @@ export default function ArtixClone() {
           <div className="h-[calc(5rem+env(safe-area-inset-bottom))] w-full"></div>
         </div>
 
-        {/* INPUT AREA */}
         <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-30 pointer-events-none flex justify-center bg-gradient-to-t from-black via-black to-transparent pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="w-full max-w-3xl pointer-events-auto relative group">
             {attachment && (
@@ -583,7 +772,7 @@ export default function ArtixClone() {
         </div>
       </div>
 
-      {/* CANVAS */}
+      {/* 3. RIGHT CANVAS (Live Code Engine) */}
       <div className={`
         fixed inset-0 z-[100] bg-[#080808] flex flex-col transition-all duration-300
         md:static md:inset-auto md:z-20 md:border-l md:border-white/5 md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)]
@@ -591,18 +780,55 @@ export default function ArtixClone() {
         ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}
         pt-[env(safe-area-inset-top)]
       `}>
-        <div className="h-16 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-4 md:px-5 bg-[#080808]">
+        {/* Canvas Header */}
+        <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-4 md:px-5 bg-[#080808]">
           <div className="flex items-center space-x-3 overflow-hidden">
-            <div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20"><FileText size={14} className="text-emerald-400" /></div>
-            <div className="flex flex-col"><span className="text-xs font-medium text-zinc-200 truncate max-w-[150px] md:max-w-[200px]">{canvasContent.title}</span><span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span></div>
+            <div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20">
+               <FileText size={14} className="text-emerald-400" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-medium text-zinc-200 truncate max-w-[150px] md:max-w-[200px]">{canvasContent.title}</span>
+              <span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span>
+            </div>
           </div>
           <div className="flex items-center space-x-2">
-            <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer"><Save size={18} /></button>
-            <button onClick={() => setCanvasOpen(false)} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"><X size={18} /></button>
+             {/* New: Toggle View Button */}
+             <button 
+               onClick={() => setPreviewMode(!previewMode)}
+               className={`p-2 rounded-lg transition-colors cursor-pointer ${previewMode ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`}
+               title={previewMode ? "View Code" : "Preview App"}
+             >
+               {previewMode ? <Code size={18} /> : <Play size={18} />}
+             </button>
+             
+             <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer">
+               <Save size={18} />
+             </button>
+             <button onClick={() => setCanvasOpen(false)} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-red-400 transition-colors cursor-pointer">
+               <X size={18} />
+             </button>
           </div>
         </div>
+        
+        {/* Content Area */}
         <div className="flex-1 relative bg-[#050505] overflow-hidden group pb-[env(safe-area-inset-bottom)]">
-           <textarea value={canvasContent.content} onChange={(e) => setCanvasContent({...canvasContent, content: e.target.value})} className="w-full h-full bg-transparent text-zinc-300 font-mono text-xs sm:text-sm leading-relaxed p-4 md:p-6 resize-none focus:outline-none selection:bg-emerald-500/20 custom-scrollbar" spellCheck="false" />
+           {previewMode && (canvasContent.language === 'html' || canvasContent.language === 'javascript') ? (
+             // LIVE PREVIEW IFRAME
+             <iframe 
+               srcDoc={canvasContent.content}
+               className="w-full h-full bg-white"
+               title="Live Preview"
+               sandbox="allow-scripts allow-popups allow-modals"
+             />
+           ) : (
+             // CODE EDITOR
+             <textarea 
+               value={canvasContent.content} 
+               onChange={(e) => setCanvasContent({...canvasContent, content: e.target.value})} 
+               className="w-full h-full bg-transparent text-zinc-300 font-mono text-xs sm:text-sm leading-relaxed p-4 md:p-6 resize-none focus:outline-none selection:bg-emerald-500/20 custom-scrollbar" 
+               spellCheck="false" 
+             />
+           )}
         </div>
       </div>
     </div>
