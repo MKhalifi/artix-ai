@@ -14,31 +14,25 @@ import {
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v6.3: Fullscreen Canvas
+ * ARTIX-AI v6.0: Live Preview Engine
  * * NEW FEATURES:
- * - Added Fullscreen toggle to the Canvas Engine.
- * - Canvas can now expand to cover the entire viewport (z-index 200).
- * - Preserved Live Preview and Rodin 3D functionality.
+ * - Integrated Live Preview Window for HTML/JS artifacts.
+ * - Split-view toggle (Code vs. Preview).
+ * - Sandboxed iframe execution for security.
+ * - Kept all previous Rodin 3D fixes intact.
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "6.3.0-Fullscreen";
+const VERSION = "6.0.0-LivePreview";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
 [PROTOCOL: CANVAS]
 If the user asks for code, a website, a game, or a component, output it inside an artifact block.
+If it is a web app, use 'html' language and put CSS/JS inside the same file.
 
-** CRITICAL FOR WEB APPS/REACT:** If the user wants a web app or React component, YOU MUST generate a SINGLE 'html' file that runs standalone.
-- Use <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-- Use <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-- Use <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-- Write your React code inside <script type="text/babel">.
-- Include Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-
-Format:
-:::artifact:{filename}:html
+:::artifact:{filename}:{language}
 {content}
 :::
 `;
@@ -358,11 +352,13 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
   useEffect(() => {
     setDisplayedText('');
     index.current = 0;
+    
     if (text.includes(':::') || text.length < 50) {
         setDisplayedText(text);
         if(onComplete) onComplete();
         return;
     }
+
     const timer = setInterval(() => {
       if (index.current < text.length) {
         setDisplayedText((prev) => prev + text.charAt(index.current));
@@ -389,17 +385,33 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
           </div>
         </div>
         <div className="p-4 overflow-x-auto text-emerald-100/90 custom-scrollbar">
-          <code className={className} {...props}>{children}</code>
+          <code className={className} {...props}>
+            {children}
+          </code>
         </div>
       </div>
     ) : (
-      <code className="bg-emerald-900/30 text-emerald-300 px-1 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>
+      <code className="bg-emerald-900/30 text-emerald-300 px-1 py-0.5 rounded text-xs font-mono" {...props}>
+        {children}
+      </code>
     );
   };
 
   return (
     <div className="markdown-content text-[13px] sm:text-[14px] leading-7 font-light tracking-wide text-zinc-200">
-      <ReactMarkdown children={displayedText} remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ code: CodeBlock, strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />, a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />, p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, }} />
+      <ReactMarkdown
+        children={displayedText}
+        remarkPlugins={[remarkMath, remarkGfm]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          code: CodeBlock,
+          strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />,
+          a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />,
+          ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+          ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+        }}
+      />
     </div>
   );
 };
@@ -407,28 +419,69 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
 // --- MAIN APPLICATION ---
 
 export default function ArtixClone() {
-  const [sessions, setSessions] = useState([{ id: 'init', title: 'System Initialization', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} online. Hyper3D Matrix Connected.` }], date: new Date() }]);
+  const [sessions, setSessions] = useState([
+    { id: 'init', title: 'System Initialization', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} online. Hyper3D Matrix Connected.` }], date: new Date() }
+  ]);
   const [activeSessionId, setActiveSessionId] = useState('init');
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [deepThink, setDeepThink] = useState(false);
   const [attachment, setAttachment] = useState(null); 
   
+  // NEW: Preview Mode State
   const [canvasOpen, setCanvasOpen] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false); 
+  const [previewMode, setPreviewMode] = useState(false); // Toggle between Code/Preview
   const [canvasContent, setCanvasContent] = useState({ title: 'untitled.txt', language: 'text', content: '' });
   const [sidebarOpen, setSidebarOpen] = useState(false); 
-  const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false); // Fullscreen state
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
-  useEffect(() => { if (window.innerWidth >= 768) setSidebarOpen(true); }, []);
-  const handleFileSelect = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const base64Data = e.target.result.split(',')[1]; setAttachment({ type: file.type, data: base64Data, preview: e.target.result }); }; reader.readAsDataURL(file); };
-  const clearAttachment = () => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
-  const createSession = () => { const newId = `sess_${Date.now()}`; const newSession = { id: newId, title: 'New Protocol', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} // New Thread.` }], date: new Date() }; setSessions(prev => [...prev, newSession]); setActiveSessionId(newId); setCanvasOpen(false); setCanvasContent({ title: 'untitled.txt', language: 'text', content: '' }); if (window.innerWidth < 768) setSidebarOpen(false); };
-  const deleteSession = (e, id) => { e.stopPropagation(); if (sessions.length === 1) return; const newSessions = sessions.filter(s => s.id !== id); setSessions(newSessions); if (activeSessionId === id) setActiveSessionId(newSessions[0].id); };
+  useEffect(() => {
+    if (window.innerWidth >= 768) {
+      setSidebarOpen(true);
+    }
+  }, []);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Data = e.target.result.split(',')[1]; 
+      setAttachment({ type: file.type, data: base64Data, preview: e.target.result });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearAttachment = () => {
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const createSession = () => {
+    const newId = `sess_${Date.now()}`;
+    const newSession = {
+      id: newId,
+      title: 'New Protocol',
+      messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} // New Thread.` }],
+      date: new Date()
+    };
+    setSessions(prev => [...prev, newSession]);
+    setActiveSessionId(newId);
+    setCanvasOpen(false);
+    setCanvasContent({ title: 'untitled.txt', language: 'text', content: '' });
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
+  const deleteSession = (e, id) => {
+    e.stopPropagation();
+    if (sessions.length === 1) return; 
+    const newSessions = sessions.filter(s => s.id !== id);
+    setSessions(newSessions);
+    if (activeSessionId === id) setActiveSessionId(newSessions[0].id);
+  };
 
   const processResponse = async (text) => {
     const artifactRegex = /:::artifact:(.*?):(.*?)\n([\s\S]*?):::/;
@@ -437,15 +490,42 @@ export default function ArtixClone() {
       const [fullMatch, filename, lang, content] = artifactMatch;
       setCanvasContent({ title: filename.trim(), language: lang.trim(), content: content.trim() });
       setCanvasOpen(true);
-      if (lang.trim().toLowerCase() === 'html') setPreviewMode(true);
+      
+      // Auto-switch to preview if it looks like HTML
+      if (lang.trim().toLowerCase() === 'html') {
+          setPreviewMode(true);
+      }
+      
       text = text.replace(fullMatch, `\n> [SYSTEM]: Artifact generated. See Canvas panel (${filename.trim()}).\n`);
     }
+
     const imageRegex = /:::image_gen:(.*?):::/;
     const imageMatch = text.match(imageRegex);
-    if (imageMatch) { const [fullMatch, prompt] = imageMatch; let cleanText = text.replace(fullMatch, ""); try { const imageUrl = await generateImage(prompt); if (imageUrl) { return { text: cleanText + `\n> [GEN_ENGINE]: Image generated successfully.`, generatedImage: imageUrl }; } else { return { text: cleanText + `\n> [GEN_ENGINE]: Generation failed.` }; } } catch (e) { return { text: cleanText + `\n> [GEN_ENGINE]: Generation Error.` }; } }
+    if (imageMatch) {
+      const [fullMatch, prompt] = imageMatch;
+      let cleanText = text.replace(fullMatch, "");
+      try {
+        const imageUrl = await generateImage(prompt);
+        if (imageUrl) {
+           return { text: cleanText + `\n> [GEN_ENGINE]: Image generated successfully.`, generatedImage: imageUrl };
+        } else {
+           return { text: cleanText + `\n> [GEN_ENGINE]: Generation failed.` };
+        }
+      } catch (e) {
+        return { text: cleanText + `\n> [GEN_ENGINE]: Generation Error.` };
+      }
+    }
+
     const threeDRegex = /:::3d_gen:(.*?):::/;
     const threeDMatch = text.match(threeDRegex);
-    if (threeDMatch) { const [fullMatch, prompt] = threeDMatch; return { text: text.replace(fullMatch, ""), threeDPrompt: prompt }; }
+    if (threeDMatch) {
+        const [fullMatch, prompt] = threeDMatch;
+        return { 
+            text: text.replace(fullMatch, ""), 
+            threeDPrompt: prompt 
+        };
+    }
+
     return { text: text };
   };
 
@@ -456,91 +536,299 @@ export default function ArtixClone() {
     setInput('');
     clearAttachment();
     setLoading(true);
-    setSessions(prev => prev.map(s => { if (s.id === activeSessionId) { const isFirst = s.messages.length <= 1; const newTitle = isFirst ? (currentInput.length > 20 ? currentInput.slice(0, 20) + '...' : currentInput || 'Analysis') : s.title; return { ...s, title: newTitle, messages: [...s.messages, { role: 'user', content: currentInput, image: currentAttachment ? currentAttachment.preview : null }] }; } return s; }));
+
+    setSessions(prev => prev.map(s => {
+      if (s.id === activeSessionId) {
+        const isFirst = s.messages.length <= 1;
+        const newTitle = isFirst ? (currentInput.length > 20 ? currentInput.slice(0, 20) + '...' : currentInput || 'Analysis') : s.title;
+        return { ...s, title: newTitle, messages: [...s.messages, { role: 'user', content: currentInput, image: currentAttachment ? currentAttachment.preview : null }] };
+      }
+      return s;
+    }));
+
     const history = activeSession.messages.filter(m => m.role !== 'system');
     const rawResponse = await generateResponse(history, currentInput, currentAttachment, deepThink);
     const processedData = await processResponse(rawResponse);
-    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, { role: 'model', content: processedData.text, generatedImage: processedData.generatedImage, threeDPrompt: processedData.threeDPrompt }] } : s));
+
+    setSessions(prev => prev.map(s => 
+      s.id === activeSessionId 
+        ? { 
+            ...s, 
+            messages: [...s.messages, { 
+              role: 'model', 
+              content: processedData.text, 
+              generatedImage: processedData.generatedImage,
+              threeDPrompt: processedData.threeDPrompt 
+            }] 
+          } 
+        : s
+    ));
+
     setLoading(false);
   };
 
-  const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [activeSession.messages, loading]);
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeSession.messages, loading]);
 
   return (
     <div className="flex h-[100dvh] w-full bg-black text-emerald-50 font-sans overflow-hidden fixed inset-0 overscroll-none selection:bg-emerald-500/30">
-      {sidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden" onClick={() => setSidebarOpen(false)} />}
-      <div className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
+      
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <div className={`
+        fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out
+        ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'}
+        pt-[env(safe-area-inset-top)]
+      `}>
         <div className="h-16 flex-shrink-0 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-[#0a0a0a] to-transparent justify-between">
-          <div className="flex items-center space-x-3"><div className="w-8 h-8 bg-emerald-950/30 rounded-lg border border-emerald-500/30 flex items-center justify-center"><Cpu size={16} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span><span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v6.3</span></div></div>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white"><X size={20} /></button>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-emerald-950/30 rounded-lg border border-emerald-500/30 flex items-center justify-center">
+              <Cpu size={16} className="text-emerald-400" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span>
+              <span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v6.0 Live</span>
+            </div>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white">
+            <X size={20} />
+          </button>
         </div>
+
         <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
-          <button onClick={createSession} className="w-full mb-6 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 p-3 rounded-lg transition-all duration-200 group cursor-pointer active:scale-95"><Plus size={14} className="group-hover:scale-110 transition-transform text-emerald-400" /><span className="text-xs font-medium uppercase tracking-wider">New Protocol</span></button>
-          <div className="space-y-1"><h3 className="text-[10px] font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Active Sessions</h3>{sessions.map(session => (<div key={session.id} onClick={() => { setActiveSessionId(session.id); if (window.innerWidth < 768) setSidebarOpen(false); }} className={`w-full relative group cursor-pointer p-3 rounded-lg flex items-center justify-between transition-all duration-200 active:bg-white/10 ${activeSessionId === session.id ? 'bg-emerald-500/5 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}>{activeSessionId === session.id && <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-emerald-500 rounded-r-full box-shadow-glow"></div>}<div className="flex items-center space-x-3 overflow-hidden"><MessageSquare size={14} className={activeSessionId === session.id ? "text-emerald-400" : "text-zinc-600"} /><span className={`text-xs truncate w-36 font-medium ${activeSessionId === session.id ? "text-emerald-100" : "text-zinc-500 group-hover:text-zinc-300"}`}>{session.title}</span></div>{sessions.length > 1 && <button onClick={(e) => deleteSession(e, session.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded transition-all text-zinc-600"><Trash2 size={12} /></button>}</div>))}</div>
+          <button onClick={createSession} className="w-full mb-6 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 p-3 rounded-lg transition-all duration-200 group cursor-pointer active:scale-95">
+            <Plus size={14} className="group-hover:scale-110 transition-transform text-emerald-400" />
+            <span className="text-xs font-medium uppercase tracking-wider">New Protocol</span>
+          </button>
+          <div className="space-y-1">
+            <h3 className="text-[10px] font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Active Sessions</h3>
+            {sessions.map(session => (
+              <div 
+                key={session.id} 
+                onClick={() => {
+                  setActiveSessionId(session.id);
+                  if (window.innerWidth < 768) setSidebarOpen(false);
+                }} 
+                className={`w-full relative group cursor-pointer p-3 rounded-lg flex items-center justify-between transition-all duration-200 active:bg-white/10 ${activeSessionId === session.id ? 'bg-emerald-500/5 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}
+              >
+                {activeSessionId === session.id && <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-emerald-500 rounded-r-full box-shadow-glow"></div>}
+                <div className="flex items-center space-x-3 overflow-hidden">
+                  <MessageSquare size={14} className={activeSessionId === session.id ? "text-emerald-400" : "text-zinc-600"} />
+                  <span className={`text-xs truncate w-36 font-medium ${activeSessionId === session.id ? "text-emerald-100" : "text-zinc-500 group-hover:text-zinc-300"}`}>{session.title}</span>
+                </div>
+                {sessions.length > 1 && <button onClick={(e) => deleteSession(e, session.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded transition-all text-zinc-600"><Trash2 size={12} /></button>}
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]"><button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}><div className="flex items-center space-x-3"><div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div><div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Think</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STD"}</span></div></div><div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} /></button></div>
+
+        <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]">
+           <button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}>
+             <div className="flex items-center space-x-3">
+               <div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div>
+               <div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Think</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STD"}</span></div>
+             </div>
+             <div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} />
+           </button>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 bg-black relative">
+        
         <header className="absolute top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
           <div className="h-16 flex items-center justify-between px-4 md:px-6">
-            <div className="flex items-center space-x-3 md:space-x-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer active:bg-white/10 rounded-full"><Menu size={24} /></button><button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:block p-2 hover:bg-white/5 rounded-lg text-zinc-500 transition-colors cursor-pointer">{sidebarOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button><div className="h-4 w-[1px] bg-white/10"></div><div className="flex flex-col min-w-0"><span className="text-xs font-medium text-zinc-200 tracking-wide truncate">{activeSession.title}</span><div className="flex items-center space-x-2"><span className="text-[10px] text-emerald-500/60 flex items-center gap-1"><div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>ONLINE</span></div></div></div>
-            <button onClick={() => setCanvasOpen(!canvasOpen)} className={`group flex items-center space-x-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer active:scale-95 ${canvasOpen ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-zinc-400 border border-white/5 hover:bg-white/10'}`}><Layout size={14} className={canvasOpen ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400 transition-colors"} /><span className="hidden sm:inline">Canvas Engine</span><span className="sm:hidden">Canvas</span></button>
+            <div className="flex items-center space-x-3 md:space-x-4">
+              <button 
+                onClick={() => setSidebarOpen(!sidebarOpen)} 
+                className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer active:bg-white/10 rounded-full"
+              >
+                <Menu size={24} />
+              </button>
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:block p-2 hover:bg-white/5 rounded-lg text-zinc-500 transition-colors cursor-pointer">
+                {sidebarOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
+              
+              <div className="h-4 w-[1px] bg-white/10"></div>
+              <div className="flex flex-col min-w-0">
+                 <span className="text-xs font-medium text-zinc-200 tracking-wide truncate">{activeSession.title}</span>
+                 <div className="flex items-center space-x-2"><span className="text-[10px] text-emerald-500/60 flex items-center gap-1"><div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>ONLINE</span></div>
+              </div>
+            </div>
+            <button onClick={() => setCanvasOpen(!canvasOpen)} className={`group flex items-center space-x-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer active:scale-95 ${canvasOpen ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-zinc-400 border border-white/5 hover:bg-white/10'}`}>
+              <Layout size={14} className={canvasOpen ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400 transition-colors"} />
+              <span className="hidden sm:inline">Canvas Engine</span>
+              <span className="sm:hidden">Canvas</span>
+            </button>
           </div>
         </header>
+
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar overscroll-contain">
           <div className="h-[calc(4rem+env(safe-area-inset-top))] w-full"></div>
+          
           <div className="px-3 sm:px-8 md:px-16 space-y-6 pb-4">
             {activeSession.messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} group`}>
-                <div className={`max-w-[95%] md:max-w-3xl flex gap-3 md:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}><div className={`hidden sm:flex w-8 h-8 rounded-lg flex-shrink-0 items-center justify-center mt-1 shadow-lg ${msg.role === 'user' ? 'bg-zinc-800 border border-white/5' : 'bg-gradient-to-br from-emerald-900/40 to-black border border-emerald-500/20'}`}>{msg.role === 'user' ? <div className="w-3 h-3 bg-zinc-400 rounded-sm" /> : <Terminal size={14} className="text-emerald-400" />}</div>
+                <div className={`max-w-[95%] md:max-w-3xl flex gap-3 md:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`hidden sm:flex w-8 h-8 rounded-lg flex-shrink-0 items-center justify-center mt-1 shadow-lg ${msg.role === 'user' ? 'bg-zinc-800 border border-white/5' : 'bg-gradient-to-br from-emerald-900/40 to-black border border-emerald-500/20'}`}>
+                    {msg.role === 'user' ? <div className="w-3 h-3 bg-zinc-400 rounded-sm" /> : <Terminal size={14} className="text-emerald-400" />}
+                  </div>
+
                   <div className="flex flex-col space-y-2 min-w-0">
-                     {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} alt="Attachment" className="w-full h-auto" /></div>)}
-                     {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} alt="Generated Art" className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500 hover:text-black transition-colors"><Download size={14} /></a></div></div>)}
-                     {msg.threeDPrompt && (<ThreeDGenerator prompt={msg.threeDPrompt} />)}
-                     {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={1} />)}</div>)}
+                     {msg.image && (
+                       <div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64">
+                         <img src={msg.image} alt="Attachment" className="w-full h-auto" />
+                       </div>
+                     )}
+
+                     {msg.generatedImage && (
+                       <div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img">
+                         <img src={msg.generatedImage} alt="Generated Art" className="w-full h-auto" />
+                         <div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                           <a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500 hover:text-black transition-colors"><Download size={14} /></a>
+                         </div>
+                       </div>
+                     )}
+
+                     {msg.threeDPrompt && (
+                        <ThreeDGenerator prompt={msg.threeDPrompt} />
+                     )}
+
+                     {msg.content && (
+                        <div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>
+                        {msg.role === 'system' ? (
+                            <div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>
+                        ) : (
+                            <Typewriter text={msg.content} speed={1} />
+                        )}
+                        </div>
+                     )}
                   </div>
                 </div>
               </div>
             ))}
-            {loading && (<div className="flex justify-start sm:pl-16 pl-2"><div className="flex items-center space-x-1.5 h-8 px-4 rounded-full bg-white/5 border border-white/5 w-fit"><Loader2 size={14} className="animate-spin text-emerald-500/60" /><span className="ml-2 text-[10px] text-emerald-500/50 font-mono uppercase tracking-widest">Neural Processing</span></div></div>)}
+            {loading && (
+              <div className="flex justify-start sm:pl-16 pl-2">
+                 <div className="flex items-center space-x-1.5 h-8 px-4 rounded-full bg-white/5 border border-white/5 w-fit">
+                    <Loader2 size={14} className="animate-spin text-emerald-500/60" /><span className="ml-2 text-[10px] text-emerald-500/50 font-mono uppercase tracking-widest">Neural Processing</span>
+                 </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
+          
           <div className="h-[calc(5rem+env(safe-area-inset-bottom))] w-full"></div>
         </div>
+
         <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-30 pointer-events-none flex justify-center bg-gradient-to-t from-black via-black to-transparent pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="w-full max-w-3xl pointer-events-auto relative group">
-            {attachment && (<div className="absolute bottom-full mb-3 left-0 bg-[#0c0c0c] border border-emerald-500/20 p-2 rounded-xl flex items-center space-x-3 shadow-2xl w-full sm:w-auto"><div className="w-12 h-12 rounded-lg overflow-hidden bg-black shrink-0"><img src={attachment.preview} className="w-full h-full object-cover" alt="preview" /></div><div className="flex flex-col flex-1 min-w-0"><span className="text-[10px] text-emerald-400 font-mono uppercase">Vision Input</span><span className="text-[9px] text-zinc-600 truncate">{attachment.type}</span></div><button onClick={clearAttachment} className="p-2 hover:bg-white/10 rounded-full text-zinc-500 hover:text-red-400 cursor-pointer"><X size={16} /></button></div>)}
+            {attachment && (
+               <div className="absolute bottom-full mb-3 left-0 bg-[#0c0c0c] border border-emerald-500/20 p-2 rounded-xl flex items-center space-x-3 shadow-2xl w-full sm:w-auto">
+                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-black shrink-0">
+                    <img src={attachment.preview} className="w-full h-full object-cover" alt="preview" />
+                 </div>
+                 <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-[10px] text-emerald-400 font-mono uppercase">Vision Input</span>
+                    <span className="text-[9px] text-zinc-600 truncate">{attachment.type}</span>
+                 </div>
+                 <button onClick={clearAttachment} className="p-2 hover:bg-white/10 rounded-full text-zinc-500 hover:text-red-400 cursor-pointer"><X size={16} /></button>
+               </div>
+            )}
+
             <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
+            
             <div className="relative flex items-end bg-[#0c0c0c]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:border-emerald-500/50 transition-colors">
-              <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
-              <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Enter directive..." className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" rows={1} />
-              <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment)} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
+              <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
+              <button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
+              
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter directive..."
+                className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed"
+                rows={1}
+              />
+              
+              <div className="mr-2 mb-2">
+                <button onClick={handleSend} disabled={loading || (!input.trim() && !attachment)} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}>
+                  <Send size={18} className={input.trim() ? "ml-0.5" : ""} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* CANVAS - Updated for Fullscreen */}
+      {/* 3. RIGHT CANVAS (Live Code Engine) */}
       <div className={`
-        transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]
-        bg-[#080808] border-l border-white/5 
-        ${isCanvasFullscreen ? 'fixed inset-0 z-[200]' : `fixed inset-0 z-[100] md:static md:inset-auto md:z-20 ${canvasOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 md:w-0 md:opacity-0 md:translate-x-20'} ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}`}
+        fixed inset-0 z-[100] bg-[#080808] flex flex-col transition-all duration-300
+        md:static md:inset-auto md:z-20 md:border-l md:border-white/5 md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)]
+        ${canvasOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 md:w-0 md:opacity-0 md:translate-x-20'}
+        ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}
         pt-[env(safe-area-inset-top)]
       `}>
-        <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-5 bg-[#080808]">
-          <div className="flex items-center space-x-3 overflow-hidden"><div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20"><FileText size={14} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-xs font-medium text-zinc-200 truncate max-w-[200px]">{canvasContent.title}</span><span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span></div></div>
+        {/* Canvas Header */}
+        <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-4 md:px-5 bg-[#080808]">
+          <div className="flex items-center space-x-3 overflow-hidden">
+            <div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20">
+               <FileText size={14} className="text-emerald-400" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-medium text-zinc-200 truncate max-w-[150px] md:max-w-[200px]">{canvasContent.title}</span>
+              <span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span>
+            </div>
+          </div>
           <div className="flex items-center space-x-2">
-            <button onClick={() => setPreviewMode(!previewMode)} className={`p-2 rounded-lg transition-colors cursor-pointer ${previewMode ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`} title={previewMode ? "View Code" : "Preview App"}>{previewMode ? <Code size={18} /> : <Play size={18} />}</button>
-            {/* NEW FULLSCREEN BUTTON */}
-            <button onClick={() => setIsCanvasFullscreen(!isCanvasFullscreen)} className={`p-2 rounded-lg transition-colors cursor-pointer ${isCanvasFullscreen ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`} title={isCanvasFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-               {isCanvasFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-            </button>
-            <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer"><Save size={16} /></button><button onClick={() => {setCanvasOpen(false); setIsCanvasFullscreen(false);}} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"><X size={16} /></button></div>
+             {/* New: Toggle View Button */}
+             <button 
+               onClick={() => setPreviewMode(!previewMode)}
+               className={`p-2 rounded-lg transition-colors cursor-pointer ${previewMode ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`}
+               title={previewMode ? "View Code" : "Preview App"}
+             >
+               {previewMode ? <Code size={18} /> : <Play size={18} />}
+             </button>
+             
+             <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer">
+               <Save size={18} />
+             </button>
+             <button onClick={() => setCanvasOpen(false)} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-red-400 transition-colors cursor-pointer">
+               <X size={18} />
+             </button>
+          </div>
         </div>
+        
+        {/* Content Area */}
         <div className="flex-1 relative bg-[#050505] overflow-hidden group pb-[env(safe-area-inset-bottom)]">
-           {previewMode && (canvasContent.language === 'html' || canvasContent.language === 'javascript') ? (<iframe srcDoc={canvasContent.content} className="w-full h-full bg-white" title="Live Preview" sandbox="allow-scripts allow-popups allow-modals" />) : (<textarea value={canvasContent.content} onChange={(e) => setCanvasContent({...canvasContent, content: e.target.value})} className="w-full h-full bg-transparent text-zinc-300 font-mono text-xs sm:text-sm leading-relaxed p-6 resize-none focus:outline-none selection:bg-emerald-500/20 custom-scrollbar" spellCheck="false" />)}
+           {previewMode && (canvasContent.language === 'html' || canvasContent.language === 'javascript') ? (
+             // LIVE PREVIEW IFRAME
+             <iframe 
+               srcDoc={canvasContent.content}
+               className="w-full h-full bg-white"
+               title="Live Preview"
+               sandbox="allow-scripts allow-popups allow-modals"
+             />
+           ) : (
+             // CODE EDITOR
+             <textarea 
+               value={canvasContent.content} 
+               onChange={(e) => setCanvasContent({...canvasContent, content: e.target.value})} 
+               className="w-full h-full bg-transparent text-zinc-300 font-mono text-xs sm:text-sm leading-relaxed p-4 md:p-6 resize-none focus:outline-none selection:bg-emerald-500/20 custom-scrollbar" 
+               spellCheck="false" 
+             />
+           )}
         </div>
       </div>
     </div>
