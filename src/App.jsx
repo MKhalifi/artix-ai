@@ -14,18 +14,19 @@ import {
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v6.4: Final Rodin Fix + Fullscreen + Paste Fix
+ * ARTIX-AI v6.5: Hafsa Glitch Easter Egg
  * * FEATURES:
  * - 3D Generation: Uses correct /api/v2/rodin endpoint via proxy.
  * - Logic: Matches route.ts (FormData) and route.ts (Status Polling).
  * - Fullscreen: Added toggle button to Canvas.
  * - Live Preview: Integrated.
  * - Image Paste: Added clipboard paste functionality.
+ * - HAFSA EASTER EGG: Glitch, blackout, and "I love you" message.
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "6.4.0-I-Love-You";
+const VERSION = "6.5.0-Love";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -370,7 +371,7 @@ const ThreeDGenerator = ({ prompt }) => {
 
 // --- FIXED TYPEWRITER COMPONENT ---
 
-const Typewriter = ({ text, speed = 10, onComplete }) => {
+const Typewriter = ({ text, speed = 5, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
   
   useEffect(() => {
@@ -442,7 +443,6 @@ const Typewriter = ({ text, speed = 10, onComplete }) => {
     </div>
   );
 };
-
 // --- MAIN APPLICATION ---
 
 export default function ArtixClone() {
@@ -460,13 +460,64 @@ export default function ArtixClone() {
   const [sidebarOpen, setSidebarOpen] = useState(false); 
   const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false); // Fullscreen state
 
+  // --- NEW HAFSA GLITCH STATES AND REFS ---
+  const [glitchActive, setGlitchActive] = useState(false);
+  const [glitchMessage, setGlitchMessage] = useState(null);
+  const flickerRef = useRef(null);
+  const glitchTimeoutRef = useRef(null);
+  // --- END HAFSA GLITCH STATES ---
+
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
+  // Cleanup intervals/timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (flickerRef.current) clearInterval(flickerRef.current);
+      if (glitchTimeoutRef.current) clearTimeout(glitchTimeoutRef.current);
+      document.documentElement.classList.remove('glitch-flicker'); // Clean the class
+    };
+  }, []);
+
   useEffect(() => { if (window.innerWidth >= 768) setSidebarOpen(true); }, []);
   
-  // --- NEW ATTACHMENT PROCESSING LOGIC ---
+  // --- NEW HAFSA GLITCH TRIGGER LOGIC ---
+  const handleHafsaTrigger = () => {
+    if (glitchActive) return; // Prevent re-triggering
+
+    setGlitchActive(true);
+    setInput('Hafsa...'); // Set input text immediately for dramatic effect
+
+    // 1. Start Glitch Flicker: Toggles a global class for CSS effect
+    flickerRef.current = setInterval(() => {
+        document.documentElement.classList.toggle('glitch-flicker'); 
+    }, 50); 
+    
+    // 2. Glitch Disappearance (3 seconds in): Stops flicker, triggers blackout
+    glitchTimeoutRef.current = setTimeout(() => {
+        clearInterval(flickerRef.current);
+        document.documentElement.classList.remove('glitch-flicker');
+        // The main content will now be heavily filtered/blacked out by CSS based on glitchActive
+    }, 3000); 
+
+    // 3. Final Message Reveal (4.5 seconds in)
+    glitchTimeoutRef.current = setTimeout(() => {
+        setGlitchMessage("I love you ❤️");
+    }, 4500); 
+  };
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setInput(value);
+
+    // Check for trigger word (case-insensitive and only when not already glitching)
+    if (value.toLowerCase().includes('hafsa') && !glitchActive) {
+        handleHafsaTrigger();
+    }
+  };
+  // --- END HAFSA GLITCH TRIGGER LOGIC ---
+
   const processAttachmentFile = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -477,18 +528,15 @@ export default function ArtixClone() {
     reader.readAsDataURL(file);
   };
   
-  // Used for file input button
   const handleFileSelect = (e) => { 
     const file = e.target.files[0]; 
     processAttachmentFile(file);
   };
 
-  // Used for clipboard paste event
   const handlePaste = (e) => {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     let file = null;
     
-    // 1. Look for an image in the clipboard items
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
         file = items[i].getAsFile();
@@ -496,14 +544,11 @@ export default function ArtixClone() {
       }
     }
 
-    // 2. If an image file is found, prevent default paste, and process the file.
     if (file) {
       e.preventDefault(); 
       processAttachmentFile(file);
     }
-    // 3. If no image is found, native text paste proceeds naturally.
   };
-  // --- END NEW ATTACHMENT PROCESSING LOGIC ---
   
   const clearAttachment = () => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
   const createSession = () => { const newId = `sess_${Date.now()}`; const newSession = { id: newId, title: 'New Protocol', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} // New Thread.` }], date: new Date() }; setSessions(prev => [...prev, newSession]); setActiveSessionId(newId); setCanvasOpen(false); setCanvasContent({ title: 'untitled.txt', language: 'text', content: '' }); if (window.innerWidth < 768) setSidebarOpen(false); };
@@ -530,6 +575,13 @@ export default function ArtixClone() {
 
   const handleSend = async () => {
     if ((!input.trim() && !attachment) || loading) return;
+    
+    // Check for Hafsa trigger before proceeding with actual send logic
+    if (input.toLowerCase().includes('hafsa') && !glitchActive) {
+      handleHafsaTrigger();
+      return; 
+    }
+
     const currentInput = input;
     const currentAttachment = attachment;
     setInput('');
@@ -548,89 +600,117 @@ export default function ArtixClone() {
 
   return (
     <div className="flex h-[100dvh] w-full bg-black text-emerald-50 font-sans overflow-hidden fixed inset-0 overscroll-none selection:bg-emerald-500/30">
-      {sidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden" onClick={() => setSidebarOpen(false)} />}
-      <div className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
-        <div className="h-16 flex-shrink-0 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-[#0a0a0a] to-transparent justify-between">
-          <div className="flex items-center space-x-3"><div className="w-8 h-8 bg-emerald-950/30 rounded-lg border border-emerald-500/30 flex items-center justify-center"><Cpu size={16} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span><span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v6.3</span></div></div>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white"><X size={20} /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
-          <button onClick={createSession} className="w-full mb-6 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 p-3 rounded-lg transition-all duration-200 group cursor-pointer active:scale-95"><Plus size={14} className="group-hover:scale-110 transition-transform text-emerald-400" /><span className="text-xs font-medium uppercase tracking-wider">New Protocol</span></button>
-          <div className="space-y-1"><h3 className="text-[10px] font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Active Sessions</h3>{sessions.map(session => (<div key={session.id} onClick={() => { setActiveSessionId(session.id); if (window.innerWidth < 768) setSidebarOpen(false); }} className={`w-full relative group cursor-pointer p-3 rounded-lg flex items-center justify-between transition-all duration-200 active:bg-white/10 ${activeSessionId === session.id ? 'bg-emerald-500/5 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}>{activeSessionId === session.id && <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-emerald-500 rounded-r-full box-shadow-glow"></div>}<div className="flex items-center space-x-3 overflow-hidden"><MessageSquare size={14} className={activeSessionId === session.id ? "text-emerald-400" : "text-zinc-600"} /><span className={`text-xs truncate w-36 font-medium ${activeSessionId === session.id ? "text-emerald-100" : "text-zinc-500 group-hover:text-zinc-300"}`}>{session.title}</span></div>{sessions.length > 1 && <button onClick={(e) => deleteSession(e, session.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded transition-all text-zinc-600"><Trash2 size={12} /></button>}</div>))}</div>
-        </div>
-        <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]"><button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}><div className="flex items-center space-x-3"><div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div><div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Thinking</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STANDARD"}</span></div></div><div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} /></button></div>
-      </div>
 
-      <div className="flex-1 flex flex-col min-w-0 bg-black relative">
-        <header className="absolute top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-          <div className="h-16 flex items-center justify-between px-4 md:px-6">
-            <div className="flex items-center space-x-3 md:space-x-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer active:bg-white/10 rounded-full"><Menu size={24} /></button><button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:block p-2 hover:bg-white/5 rounded-lg text-zinc-500 transition-colors cursor-pointer">{sidebarOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button><div className="h-4 w-[1px] bg-white/10"></div><div className="flex flex-col min-w-0"><span className="text-xs font-medium text-zinc-200 tracking-wide truncate">{activeSession.title}</span><div className="flex items-center space-x-2"><span className="text-[10px] text-emerald-500/60 flex items-center gap-1"><div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>ONLINE</span></div></div></div>
-            <button onClick={() => setCanvasOpen(!canvasOpen)} className={`group flex items-center space-x-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer active:scale-95 ${canvasOpen ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-zinc-400 border border-white/5 hover:bg-white/10'}`}><Layout size={14} className={canvasOpen ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400 transition-colors"} /><span className="hidden sm:inline">Canvas Engine</span><span className="sm:hidden">Canvas</span></button>
+      {/* --- HAFSA GLITCH OVERLAY (Highest Z-index for final message) --- */}
+      {glitchMessage && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 transition-opacity duration-1000 opacity-100">
+            <div className="text-7xl sm:text-9xl animate-pulse transition-all duration-1000 text-red-500 font-extrabold tracking-widest text-center shadow-2xl">
+                {glitchMessage}
+            </div>
+        </div>
+      )}
+      {/* --- END HAFSA GLITCH OVERLAY --- */}
+
+      {/* --- APP CONTENT WRAPPER --- */}
+      {/* Apply filter/blur during glitch, hide entirely for final message */}
+      <div 
+        className={`flex h-full w-full ${glitchMessage ? 'hidden' : 'relative'}`}
+        style={glitchActive 
+            ? { 
+                filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', 
+                opacity: 0.2, 
+                transition: 'filter 0.3s, opacity 0.3s' 
+              } 
+            : {}
+        }
+      >
+        
+        {sidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden" onClick={() => setSidebarOpen(false)} />}
+        <div className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
+          <div className="h-16 flex-shrink-0 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-[#0a0a0a] to-transparent justify-between">
+            <div className="flex items-center space-x-3"><div className="w-8 h-8 bg-emerald-950/30 rounded-lg border border-emerald-500/30 flex items-center justify-center"><Cpu size={16} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span><span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v6.3</span></div></div>
+            <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white"><X size={20} /></button>
           </div>
-        </header>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar overscroll-contain">
-          <div className="h-[calc(4rem+env(safe-area-inset-top))] w-full"></div>
-          <div className="px-3 sm:px-8 md:px-16 space-y-6 pb-4">
-            {activeSession.messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} group`}>
-                <div className={`max-w-[95%] md:max-w-3xl flex gap-3 md:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}><div className={`hidden sm:flex w-8 h-8 rounded-lg flex-shrink-0 items-center justify-center mt-1 shadow-lg ${msg.role === 'user' ? 'bg-zinc-800 border border-white/5' : 'bg-gradient-to-br from-emerald-900/40 to-black border border-emerald-500/20'}`}>{msg.role === 'user' ? <div className="w-3 h-3 bg-zinc-400 rounded-sm" /> : <Terminal size={14} className="text-emerald-400" />}</div>
-                  <div className="flex flex-col space-y-2 min-w-0">
-                     {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} alt="Attachment" className="w-full h-auto" /></div>)}
-                     {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} alt="Generated Art" className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500 hover:text-black transition-colors"><Download size={14} /></a></div></div>)}
-                     {msg.threeDPrompt && (<ThreeDGenerator prompt={msg.threeDPrompt} />)}
-                     {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={5} />)}</div>)}
+          <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
+            <button onClick={createSession} className="w-full mb-6 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 p-3 rounded-lg transition-all duration-200 group cursor-pointer active:scale-95"><Plus size={14} className="group-hover:scale-110 transition-transform text-emerald-400" /><span className="text-xs font-medium uppercase tracking-wider">New Protocol</span></button>
+            <div className="space-y-1"><h3 className="text-[10px] font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Active Sessions</h3>{sessions.map(session => (<div key={session.id} onClick={() => { setActiveSessionId(session.id); if (window.innerWidth < 768) setSidebarOpen(false); }} className={`w-full relative group cursor-pointer p-3 rounded-lg flex items-center justify-between transition-all duration-200 active:bg-white/10 ${activeSessionId === session.id ? 'bg-emerald-500/5 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}>{activeSessionId === session.id && <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-emerald-500 rounded-r-full box-shadow-glow"></div>}<div className="flex items-center space-x-3 overflow-hidden"><MessageSquare size={14} className={activeSessionId === session.id ? "text-emerald-400" : "text-zinc-600"} /><span className={`text-xs truncate w-36 font-medium ${activeSessionId === session.id ? "text-emerald-100" : "text-zinc-500 group-hover:text-zinc-300"}`}>{session.title}</span></div>{sessions.length > 1 && <button onClick={(e) => deleteSession(e, session.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded transition-all text-zinc-600"><Trash2 size={12} /></button>}</div>))}</div>
+          </div>
+          <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]"><button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}><div className="flex items-center space-x-3"><div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div><div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Thinking</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STANDARD"}</span></div></div><div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} /></button></div>
+        </div>
+
+        <div className="flex-1 flex flex-col min-w-0 bg-black relative">
+          <header className="absolute top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+            <div className="h-16 flex items-center justify-between px-4 md:px-6">
+              <div className="flex items-center space-x-3 md:space-x-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer active:bg-white/10 rounded-full"><Menu size={24} /></button><button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:block p-2 hover:bg-white/5 rounded-lg text-zinc-500 transition-colors cursor-pointer">{sidebarOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button><div className="h-4 w-[1px] bg-white/10"></div><div className="flex flex-col min-w-0"><span className="text-xs font-medium text-zinc-200 tracking-wide truncate">{activeSession.title}</span><div className="flex items-center space-x-2"><span className="text-[10px] text-emerald-500/60 flex items-center gap-1"><div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>ONLINE</span></div></div></div>
+              <button onClick={() => setCanvasOpen(!canvasOpen)} className={`group flex items-center space-x-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer active:scale-95 ${canvasOpen ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-zinc-400 border border-white/5 hover:bg-white/10'}`}><Layout size={14} className={canvasOpen ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400 transition-colors"} /><span className="hidden sm:inline">Canvas Engine</span><span className="sm:hidden">Canvas</span></button>
+            </div>
+          </header>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar overscroll-contain">
+            <div className="h-[calc(4rem+env(safe-area-inset-top))] w-full"></div>
+            <div className="px-3 sm:px-8 md:px-16 space-y-6 pb-4">
+              {activeSession.messages.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} group`}>
+                  <div className={`max-w-[95%] md:max-w-3xl flex gap-3 md:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}><div className={`hidden sm:flex w-8 h-8 rounded-lg flex-shrink-0 items-center justify-center mt-1 shadow-lg ${msg.role === 'user' ? 'bg-zinc-800 border border-white/5' : 'bg-gradient-to-br from-emerald-900/40 to-black border border-emerald-500/20'}`}>{msg.role === 'user' ? <div className="w-3 h-3 bg-zinc-400 rounded-sm" /> : <Terminal size={14} className="text-emerald-400" />}</div>
+                    <div className="flex flex-col space-y-2 min-w-0">
+                      {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} alt="Attachment" className="w-full h-auto" /></div>)}
+                      {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} alt="Generated Art" className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500 hover:text-black transition-colors"><Download size={14} /></a></div></div>)}
+                      {msg.threeDPrompt && (<ThreeDGenerator prompt={msg.threeDPrompt} />)}
+                      {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={5} />)}</div>)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {loading && (<div className="flex justify-start sm:pl-16 pl-2"><div className="flex items-center space-x-1.5 h-8 px-4 rounded-full bg-white/5 border border-white/5 w-fit"><Loader2 size={14} className="animate-spin text-emerald-500/60" /><span className="ml-2 text-[10px] text-emerald-500/50 font-mono uppercase tracking-widest">Neural Processing</span></div></div>)}
-            <div ref={messagesEndRef} />
+              ))}
+              {loading && (<div className="flex justify-start sm:pl-16 pl-2"><div className="flex items-center space-x-1.5 h-8 px-4 rounded-full bg-white/5 border border-white/5 w-fit"><Loader2 size={14} className="animate-spin text-emerald-500/60" /><span className="ml-2 text-[10px] text-emerald-500/50 font-mono uppercase tracking-widest">Neural Processing</span></div></div>)}
+              <div ref={messagesEndRef} />
+            </div>
+            <div className="h-[calc(5rem+env(safe-area-inset-bottom))] w-full"></div>
           </div>
-          <div className="h-[calc(5rem+env(safe-area-inset-bottom))] w-full"></div>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-30 pointer-events-none flex justify-center bg-gradient-to-t from-black via-black to-transparent pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-          <div className="w-full max-w-3xl pointer-events-auto relative group">
-            {attachment && (<div className="absolute bottom-full mb-3 left-0 bg-[#0c0c0c] border border-emerald-500/20 p-2 rounded-xl flex items-center space-x-3 shadow-2xl w-full sm:w-auto"><div className="w-12 h-12 rounded-lg overflow-hidden bg-black shrink-0"><img src={attachment.preview} className="w-full h-full object-cover" alt="preview" /></div><div className="flex flex-col flex-1 min-w-0"><span className="text-[10px] text-emerald-400 font-mono uppercase">Vision Input</span><span className="text-[9px] text-zinc-600 truncate">{attachment.type}</span></div><button onClick={clearAttachment} className="p-2 hover:bg-white/10 rounded-full text-zinc-500 hover:text-red-400 cursor-pointer"><X size={16} /></button></div>)}
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
-            <div className="relative flex items-end bg-[#0c0c0c]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:border-emerald-500/50 transition-colors">
-              <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
-              <textarea 
-                value={input} 
-                onChange={(e) => setInput(e.target.value)} 
-                onKeyDown={handleKeyDown} 
-                onPaste={handlePaste} // <--- IMAGE PASTE FIX APPLIED HERE
-                placeholder="Enter directive..." 
-                className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" 
-                rows={1} 
-              />
-              <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment)} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
+          <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-30 pointer-events-none flex justify-center bg-gradient-to-t from-black via-black to-transparent pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            <div className="w-full max-w-3xl pointer-events-auto relative group">
+              {attachment && (<div className="absolute bottom-full mb-3 left-0 bg-[#0c0c0c] border border-emerald-500/20 p-2 rounded-xl flex items-center space-x-3 shadow-2xl w-full sm:w-auto"><div className="w-12 h-12 rounded-lg overflow-hidden bg-black shrink-0"><img src={attachment.preview} className="w-full h-full object-cover" alt="preview" /></div><div className="flex flex-col flex-1 min-w-0"><span className="text-[10px] text-emerald-400 font-mono uppercase">Vision Input</span><span className="text-[9px] text-zinc-600 truncate">{attachment.type}</span></div><button onClick={clearAttachment} className="p-2 hover:bg-white/10 rounded-full text-zinc-500 hover:text-red-400 cursor-pointer"><X size={16} /></button></div>)}
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
+              <div className="relative flex items-end bg-[#0c0c0c]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:border-emerald-500/50 transition-colors">
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
+                <textarea 
+                  value={input} 
+                  onChange={handleInputChange} // <-- UPDATED HANDLER
+                  onKeyDown={handleKeyDown} 
+                  onPaste={handlePaste} 
+                  placeholder="Enter directive..." 
+                  className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" 
+                  rows={1} 
+                  disabled={glitchActive} // Disable input during the glitch
+                />
+                <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment) || glitchActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* CANVAS - Updated for Fullscreen */}
-      <div className={`
+        {/* CANVAS - Updated for Fullscreen */}
+        <div className={`
   flex flex-col h-full // <--- ADDED THESE THREE CLASSES
   transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]
   bg-[#080808] border-l border-white/5 
   ${isCanvasFullscreen ? 'fixed inset-0 z-[200]' : `fixed inset-0 z-[100] md:static md:inset-auto md:z-20 ${canvasOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 md:w-0 md:opacity-0 md:translate-x-20'} ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}`}
   pt-[env(safe-area-inset-top)]
 `}>
-        <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-5 bg-[#080808]">
-          <div className="flex items-center space-x-3 overflow-hidden"><div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20"><FileText size={14} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-xs font-medium text-zinc-200 truncate max-w-[200px]">{canvasContent.title}</span><span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span></div></div>
-          <div className="flex items-center space-x-2">
-            <button onClick={() => setPreviewMode(!previewMode)} className={`p-2 rounded-lg transition-colors cursor-pointer ${previewMode ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`} title={previewMode ? "View Code" : "Preview App"}>{previewMode ? <Code size={18} /> : <Play size={18} />}</button>
-            {/* NEW FULLSCREEN BUTTON */}
-            <button onClick={() => setIsCanvasFullscreen(!isCanvasFullscreen)} className={`p-2 rounded-lg transition-colors cursor-pointer ${isCanvasFullscreen ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`} title={isCanvasFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-               {isCanvasFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-            </button>
-            <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer"><Save size={16} /></button><button onClick={() => {setCanvasOpen(false); setIsCanvasFullscreen(false);}} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"><X size={16} /></button></div>
+          <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-5 bg-[#080808]">
+            <div className="flex items-center space-x-3 overflow-hidden"><div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20"><FileText size={14} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-xs font-medium text-zinc-200 truncate max-w-[200px]">{canvasContent.title}</span><span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span></div></div>
+            <div className="flex items-center space-x-2">
+              <button onClick={() => setPreviewMode(!previewMode)} className={`p-2 rounded-lg transition-colors cursor-pointer ${previewMode ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`} title={previewMode ? "View Code" : "Preview App"}>{previewMode ? <Code size={18} /> : <Play size={18} />}</button>
+              <button onClick={() => setIsCanvasFullscreen(!isCanvasFullscreen)} className={`p-2 rounded-lg transition-colors cursor-pointer ${isCanvasFullscreen ? 'text-emerald-400 bg-emerald-950/30' : 'text-zinc-500 hover:bg-white/5'}`} title={isCanvasFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
+                {isCanvasFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
+              <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer"><Save size={16} /></button><button onClick={() => {setCanvasOpen(false); setIsCanvasFullscreen(false);}} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"><X size={16} /></button></div>
+          </div>
+          <div className="flex-1 relative bg-[#050505] overflow-hidden group pb-[env(safe-area-inset-bottom)]">
+            {previewMode && (canvasContent.language === 'html' || canvasContent.language === 'javascript') ? (<iframe srcDoc={canvasContent.content} className="w-full h-full bg-white" title="Live Preview" sandbox="allow-scripts allow-popups allow-modals" />) : (<textarea value={canvasContent.content} onChange={(e) => setCanvasContent({...canvasContent, content: e.target.value})} className="w-full h-full bg-transparent text-zinc-300 font-mono text-xs sm:text-sm leading-relaxed p-6 resize-none focus:outline-none selection:bg-emerald-500/20 custom-scrollbar" spellCheck="false" />)}
+          </div>
         </div>
-        <div className="flex-1 relative bg-[#050505] overflow-hidden group pb-[env(safe-area-inset-bottom)]">
-           {previewMode && (canvasContent.language === 'html' || canvasContent.language === 'javascript') ? (<iframe srcDoc={canvasContent.content} className="w-full h-full bg-white" title="Live Preview" sandbox="allow-scripts allow-popups allow-modals" />) : (<textarea value={canvasContent.content} onChange={(e) => setCanvasContent({...canvasContent, content: e.target.value})} className="w-full h-full bg-transparent text-zinc-300 font-mono text-xs sm:text-sm leading-relaxed p-6 resize-none focus:outline-none selection:bg-emerald-500/20 custom-scrollbar" spellCheck="false" />)}
-        </div>
+
       </div>
+      {/* --- END APP CONTENT WRAPPER --- */}
     </div>
   );
 }
