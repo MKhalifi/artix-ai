@@ -367,30 +367,40 @@ const ThreeDGenerator = ({ prompt }) => {
 
 // --- UI COMPONENTS ---
 
-const Typewriter = ({ text, speed = 2, onComplete }) => {
-  const [displayedText, setDisplayedText] = useState('');
-  const index = useRef(0);
+// --- FIXED TYPEWRITER COMPONENT ---
 
+const Typewriter = ({ text, speed = 10, onComplete }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  
   useEffect(() => {
-    setDisplayedText('');
-    index.current = 0;
-    if (text.includes(':::') || text.length < 50) {
-        setDisplayedText(text);
+    // 1. Reset text immediately when prop changes
+    setDisplayedText(''); 
+    
+    // 2. If text is missing, short, or has complex artifacts, show instantly to avoid bugs
+    if (!text || text.length < 5 || text.includes(':::')) {
+        setDisplayedText(text || '');
         if(onComplete) onComplete();
         return;
     }
+
+    let i = 0;
+    
+    // 3. Use an interval that slices the string (0 to i)
+    // This method is "unskippable" because it always grabs the full start of the string
     const timer = setInterval(() => {
-      if (index.current < text.length) {
-        setDisplayedText((prev) => prev + text.charAt(index.current));
-        index.current++;
+      if (i <= text.length) {
+        setDisplayedText(text.slice(0, i));
+        i++;
       } else {
         clearInterval(timer);
         if (onComplete) onComplete();
       }
     }, speed);
+
     return () => clearInterval(timer);
   }, [text, speed, onComplete]);
 
+  // Render Logic (Markdown)
   const CodeBlock = ({ inline, className, children, ...props }) => {
     const match = /language-(\w+)/.exec(className || '');
     return !inline ? (
@@ -415,7 +425,19 @@ const Typewriter = ({ text, speed = 2, onComplete }) => {
 
   return (
     <div className="markdown-content text-[13px] sm:text-[14px] leading-7 font-light tracking-wide text-zinc-200">
-      <ReactMarkdown children={displayedText} remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ code: CodeBlock, strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />, a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />, p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, }} />
+      <ReactMarkdown 
+        children={displayedText} 
+        remarkPlugins={[remarkMath, remarkGfm]} 
+        rehypePlugins={[rehypeKatex]} 
+        components={{ 
+          code: CodeBlock, 
+          strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />, 
+          a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />, 
+          ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />, 
+          ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />, 
+          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, 
+        }} 
+      />
     </div>
   );
 };
@@ -516,7 +538,7 @@ export default function ArtixClone() {
                      {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} alt="Attachment" className="w-full h-auto" /></div>)}
                      {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} alt="Generated Art" className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500 hover:text-black transition-colors"><Download size={14} /></a></div></div>)}
                      {msg.threeDPrompt && (<ThreeDGenerator prompt={msg.threeDPrompt} />)}
-                     {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={1} />)}</div>)}
+                     {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={10} />)}</div>)}
                   </div>
                 </div>
               </div>
