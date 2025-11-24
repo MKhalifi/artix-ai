@@ -24,7 +24,7 @@ import {
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "6.4.0-RodinFixed";
+const VERSION = "6.4.0-Hafsa";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
