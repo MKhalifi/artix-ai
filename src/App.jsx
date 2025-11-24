@@ -611,11 +611,12 @@ export default function ArtixClone() {
 
       {/* CANVAS - Updated for Fullscreen */}
       <div className={`
-        transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]
-        bg-[#080808] border-l border-white/5 
-        ${isCanvasFullscreen ? 'fixed inset-0 z-[200]' : `fixed inset-0 z-[100] md:static md:inset-auto md:z-20 ${canvasOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 md:w-0 md:opacity-0 md:translate-x-20'} ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}`}
-        pt-[env(safe-area-inset-top)]
-      `}>
+  flex flex-col h-full // <--- ADDED THESE THREE CLASSES
+  transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]
+  bg-[#080808] border-l border-white/5 
+  ${isCanvasFullscreen ? 'fixed inset-0 z-[200]' : `fixed inset-0 z-[100] md:static md:inset-auto md:z-20 ${canvasOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 md:w-0 md:opacity-0 md:translate-x-20'} ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}`}
+  pt-[env(safe-area-inset-top)]
+`}>
         <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-5 bg-[#080808]">
           <div className="flex items-center space-x-3 overflow-hidden"><div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20"><FileText size={14} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-xs font-medium text-zinc-200 truncate max-w-[200px]">{canvasContent.title}</span><span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span></div></div>
           <div className="flex items-center space-x-2">
