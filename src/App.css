@@ -40,3 +40,25 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Glitch CSS for Hafsa Easter Egg */
+.glitch-flicker {
+    /* Subtle Color Shift for the Glitch */
+    background-color: #1a0113 !important;
+    
+    /* Random Text/Element Displacement (Glitch Effect) */
+    transform: translate(2px, -2px); 
+    box-shadow: 0 0 5px rgba(255, 0, 0, 0.5), 0 0 10px rgba(0, 255, 255, 0.5);
+    
+    /* Randomly change font style */
+    font-weight: 900 !important;
+    color: rgb(255, 127, 255) !important; 
+    
+    /* Ensure the glitch overrides the emerald theme temporarily */
+    border-color: red !important;
+}
+
+/* Optional: Make the text unreadable/distorted during the initial glitch */
+.glitch-flicker * {
+    text-shadow: 1px 0 0 red, -1px 0 0 blue;
+}
