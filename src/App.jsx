@@ -14,17 +14,18 @@ import {
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v6.4: Final Rodin Fix + Fullscreen
+ * ARTIX-AI v6.4: Final Rodin Fix + Fullscreen + Paste Fix
  * * FEATURES:
  * - 3D Generation: Uses correct /api/v2/rodin endpoint via proxy.
- * - Logic: Matches route(2).ts (FormData) and route(3).ts (Status Polling).
+ * - Logic: Matches route.ts (FormData) and route.ts (Status Polling).
  * - Fullscreen: Added toggle button to Canvas.
  * - Live Preview: Integrated.
+ * - Image Paste: Added clipboard paste functionality.
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "6.4.0-Hafsa";
+const VERSION = "6.4.0-RodinFixed";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -144,7 +145,7 @@ const generateImage = async (prompt) => {
     
     if (data.error) {
       console.error("API Error Details:", data.error);
-      throw new Error(data.error.message || "API refused generation");
+      throw new Error(data.error.message || "API request failed");
     }
     
     const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
@@ -171,7 +172,7 @@ const ThreeDGenerator = ({ prompt }) => {
   // Points to local proxy defined in vite.config.js
   const PROXY_BASE = "/rodin-proxy"; 
 
-  // 1. Create Task (Matches route(2).ts logic)
+  // 1. Create Task (Matches route.ts logic)
   useEffect(() => {
     const createTask = async () => {
       setStatus('creating');
@@ -179,11 +180,11 @@ const ThreeDGenerator = ({ prompt }) => {
       try {
         console.log(`[3D] Creating Task via ${PROXY_BASE}/api/v2/rodin`);
         
-        // Create FormData as per route(2).ts
+        // Create FormData as per route.ts
         const formData = new FormData();
         formData.append('prompt', prompt); 
 
-        // Note: route(2).ts sends to /api/v2/rodin
+        // Note: route.ts sends to /api/v2/rodin
         const response = await fetch(`${PROXY_BASE}/api/v2/rodin`, {
           method: 'POST',
           headers: {
@@ -224,7 +225,7 @@ const ThreeDGenerator = ({ prompt }) => {
     if (prompt) createTask();
   }, [prompt]);
 
-  // 2. Poll Status (Matches route(3).ts logic)
+  // 2. Poll Status (Matches route.ts logic)
   useEffect(() => {
     if (status !== 'polling' || !taskData.subKey) return;
 
@@ -240,7 +241,7 @@ const ThreeDGenerator = ({ prompt }) => {
       }
 
       try {
-        // Use POST for status check (as seen in route(3).ts)
+        // Use POST for status check (as seen in route.ts)
         const response = await fetch(`${PROXY_BASE}/api/v2/status`, {
             method: 'POST',
             headers: { 
@@ -464,7 +465,46 @@ export default function ArtixClone() {
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
   useEffect(() => { if (window.innerWidth >= 768) setSidebarOpen(true); }, []);
-  const handleFileSelect = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const base64Data = e.target.result.split(',')[1]; setAttachment({ type: file.type, data: base64Data, preview: e.target.result }); }; reader.readAsDataURL(file); };
+  
+  // --- NEW ATTACHMENT PROCESSING LOGIC ---
+  const processAttachmentFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Data = e.target.result.split(',')[1];
+      setAttachment({ type: file.type, data: base64Data, preview: e.target.result });
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  // Used for file input button
+  const handleFileSelect = (e) => { 
+    const file = e.target.files[0]; 
+    processAttachmentFile(file);
+  };
+
+  // Used for clipboard paste event
+  const handlePaste = (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    let file = null;
+    
+    // 1. Look for an image in the clipboard items
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        file = items[i].getAsFile();
+        break;
+      }
+    }
+
+    // 2. If an image file is found, prevent default paste, and process the file.
+    if (file) {
+      e.preventDefault(); 
+      processAttachmentFile(file);
+    }
+    // 3. If no image is found, native text paste proceeds naturally.
+  };
+  // --- END NEW ATTACHMENT PROCESSING LOGIC ---
+  
   const clearAttachment = () => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
   const createSession = () => { const newId = `sess_${Date.now()}`; const newSession = { id: newId, title: 'New Protocol', messages: [{ role: 'system', content: `ARTIX-AI v${VERSION} // New Thread.` }], date: new Date() }; setSessions(prev => [...prev, newSession]); setActiveSessionId(newId); setCanvasOpen(false); setCanvasContent({ title: 'untitled.txt', language: 'text', content: '' }); if (window.innerWidth < 768) setSidebarOpen(false); };
   const deleteSession = (e, id) => { e.stopPropagation(); if (sessions.length === 1) return; const newSessions = sessions.filter(s => s.id !== id); setSessions(newSessions); if (activeSessionId === id) setActiveSessionId(newSessions[0].id); };
@@ -518,7 +558,7 @@ export default function ArtixClone() {
           <button onClick={createSession} className="w-full mb-6 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 p-3 rounded-lg transition-all duration-200 group cursor-pointer active:scale-95"><Plus size={14} className="group-hover:scale-110 transition-transform text-emerald-400" /><span className="text-xs font-medium uppercase tracking-wider">New Protocol</span></button>
           <div className="space-y-1"><h3 className="text-[10px] font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Active Sessions</h3>{sessions.map(session => (<div key={session.id} onClick={() => { setActiveSessionId(session.id); if (window.innerWidth < 768) setSidebarOpen(false); }} className={`w-full relative group cursor-pointer p-3 rounded-lg flex items-center justify-between transition-all duration-200 active:bg-white/10 ${activeSessionId === session.id ? 'bg-emerald-500/5 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}>{activeSessionId === session.id && <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-emerald-500 rounded-r-full box-shadow-glow"></div>}<div className="flex items-center space-x-3 overflow-hidden"><MessageSquare size={14} className={activeSessionId === session.id ? "text-emerald-400" : "text-zinc-600"} /><span className={`text-xs truncate w-36 font-medium ${activeSessionId === session.id ? "text-emerald-100" : "text-zinc-500 group-hover:text-zinc-300"}`}>{session.title}</span></div>{sessions.length > 1 && <button onClick={(e) => deleteSession(e, session.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded transition-all text-zinc-600"><Trash2 size={12} /></button>}</div>))}</div>
         </div>
-        <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]"><button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}><div className="flex items-center space-x-3"><div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div><div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Think</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STD"}</span></div></div><div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} /></button></div>
+        <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]"><button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}><div className="flex items-center space-x-3"><div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div><div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Thinking</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STANDARD"}</span></div></div><div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} /></button></div>
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 bg-black relative">
@@ -538,7 +578,7 @@ export default function ArtixClone() {
                      {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} alt="Attachment" className="w-full h-auto" /></div>)}
                      {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} alt="Generated Art" className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500 hover:text-black transition-colors"><Download size={14} /></a></div></div>)}
                      {msg.threeDPrompt && (<ThreeDGenerator prompt={msg.threeDPrompt} />)}
-                     {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={5} />)}</div>)}
+                     {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={10} />)}</div>)}
                   </div>
                 </div>
               </div>
@@ -554,7 +594,15 @@ export default function ArtixClone() {
             <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
             <div className="relative flex items-end bg-[#0c0c0c]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:border-emerald-500/50 transition-colors">
               <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
-              <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Enter directive..." className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" rows={1} />
+              <textarea 
+                value={input} 
+                onChange={(e) => setInput(e.target.value)} 
+                onKeyDown={handleKeyDown} 
+                onPaste={handlePaste} // <--- IMAGE PASTE FIX APPLIED HERE
+                placeholder="Enter directive..." 
+                className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" 
+                rows={1} 
+              />
               <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment)} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
             </div>
           </div>
