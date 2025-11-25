@@ -10,23 +10,20 @@ import {
   Settings, Maximize2, Minimize2, Plus, FileText, X, Save, Copy, 
   Layout, Clock, Trash2, ChevronRight, Image as ImageIcon, 
   Paperclip, Loader2, Download, Menu, Box, RotateCw, CheckCircle2, AlertCircle,
-  Play, Eye, EyeOff
+  Play, Eye, EyeOff, Heart // Added Heart Icon
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v6.5: Hafsa Glitch Easter Egg
+ * ARTIX-AI v7.0: Love & Gravity Update
  * * FEATURES:
- * - 3D Generation: Uses correct /api/v2/rodin endpoint via proxy.
- * - Logic: Matches route.ts (FormData) and route.ts (Status Polling).
- * - Fullscreen: Added toggle button to Canvas.
- * - Live Preview: Integrated.
- * - Image Paste: Added clipboard paste functionality.
- * - HAFSA EASTER EGG: Glitch, blackout, and "I love you" message.
+ * - Existing features (3D, Glitch, Canvas).
+ * - NEW: Gravity Easter Egg (Trigger: 11/05/2025).
+ * - NEW: Days Counter Calculator.
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "6.5.0-Love";
+const VERSION = "7.0.0-Love";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -73,7 +70,6 @@ const SYSTEM_PROMPT_DEEP_THINK = `
 `;
 
 // --- API HANDLERS ---
-
 const generateResponse = async (history, userInput, attachment, isDeepThink) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
   
@@ -143,15 +139,9 @@ const generateImage = async (prompt) => {
     );
 
     const data = await response.json();
-    
-    if (data.error) {
-      console.error("API Error Details:", data.error);
-      throw new Error(data.error.message || "API request failed");
-    }
-    
+    if (data.error) throw new Error(data.error.message || "API request failed");
     const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
     if (!base64Image) throw new Error("No image data returned from API");
-    
     return `data:image/png;base64,${base64Image}`;
 
   } catch (error) {
@@ -161,54 +151,34 @@ const generateImage = async (prompt) => {
 };
 
 // --- 3D ENGINE COMPONENT ---
-
 const ThreeDGenerator = ({ prompt }) => {
   const [status, setStatus] = useState('init'); 
   const [taskData, setTaskData] = useState({ subKey: null, uuid: null }); 
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
-  
   const HYPER3D_KEY = "vibecoding"; 
-  // Points to local proxy defined in vite.config.js
   const PROXY_BASE = "/rodin-proxy"; 
 
-  // 1. Create Task (Matches route.ts logic)
   useEffect(() => {
     const createTask = async () => {
       setStatus('creating');
       setProgress(5);
       try {
-        console.log(`[3D] Creating Task via ${PROXY_BASE}/api/v2/rodin`);
-        
-        // Create FormData as per route.ts
         const formData = new FormData();
         formData.append('prompt', prompt); 
-
-        // Note: route.ts sends to /api/v2/rodin
         const response = await fetch(`${PROXY_BASE}/api/v2/rodin`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${HYPER3D_KEY}`,
-            // Do NOT set Content-Type header manually for FormData
-          },
+          headers: { 'Authorization': `Bearer ${HYPER3D_KEY}` },
           body: formData
         });
-        
         if (!response.ok) {
             const text = await response.text();
             throw new Error(`Creation Failed (${response.status}): ${text.substring(0, 50)}`);
         }
-
         const data = await response.json();
-        console.log("[3D] Creation Response:", data);
-        
-        // Logic from your console logs:
-        // data.jobs.subscription_key -> for polling
-        // data.uuid -> for downloading
         const subKey = data.jobs?.subscription_key || data.subscription_key;
         const uuid = data.uuid;
-        
         if (subKey && uuid) {
           setTaskData({ subKey, uuid });
           setStatus('polling');
@@ -217,22 +187,17 @@ const ThreeDGenerator = ({ prompt }) => {
           throw new Error("API returned success but IDs are missing.");
         }
       } catch (err) {
-        console.error("3D Init Error:", err);
         setError(err.message);
         setStatus('error');
       }
     };
-
     if (prompt) createTask();
   }, [prompt]);
 
-  // 2. Poll Status (Matches route.ts logic)
   useEffect(() => {
     if (status !== 'polling' || !taskData.subKey) return;
-
     let pollCount = 0;
     const MAX_POLLS = 600; 
-
     const poll = async () => {
       pollCount++;
       if (pollCount > MAX_POLLS) {
@@ -240,32 +205,20 @@ const ThreeDGenerator = ({ prompt }) => {
           setStatus('error');
           return;
       }
-
       try {
-        // Use POST for status check (as seen in route.ts)
         const response = await fetch(`${PROXY_BASE}/api/v2/status`, {
             method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${HYPER3D_KEY}`,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Authorization': `Bearer ${HYPER3D_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ subscription_key: taskData.subKey })
         });
-        
         if (!response.ok) return; 
-
         const data = await response.json();
-        console.log("[3D] Poll Data:", data);
-
         const currentStatus = data.status;
-        
-        // Update Progress
         if (typeof data.progress === 'number') {
             setProgress(data.progress);
         } else {
             setProgress(prev => Math.min(prev + 0.5, 95)); 
         }
-        
         if (currentStatus === 'succeed' || currentStatus === 'completed') {
             setProgress(100);
             await fetchDownloadUrl(taskData.uuid);
@@ -273,122 +226,48 @@ const ThreeDGenerator = ({ prompt }) => {
             setError("Generation failed on server");
             setStatus('error');
         }
-      } catch (err) {
-        console.warn("Polling error:", err);
-      }
+      } catch (err) { console.warn("Polling error:", err); }
     };
-
     const fetchDownloadUrl = async (uuid) => {
         try {
-            // Matches logic in route.ts
             const res = await fetch(`${PROXY_BASE}/api/v2/download`, {
                 method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${HYPER3D_KEY}`,
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Authorization': `Bearer ${HYPER3D_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ task_uuid: uuid })
             });
-            
             if (!res.ok) throw new Error(`Download API Error: ${res.status}`);
             const dlData = await res.json();
-            
-            // Assuming standard Rodin response structure for download
             const glbUrl = dlData.data?.model_urls?.glb || dlData.model_urls?.glb;
             const videoUrl = dlData.data?.video_url || dlData.video_url;
-
             if (glbUrl) {
                 setResult({ model_url: glbUrl, video_url: videoUrl });
                 setStatus('success');
             } else {
                 throw new Error("GLB URL missing from download response");
             }
-        } catch (e) { 
-            console.error("Download fetch failed", e);
-            setError(e.message);
-            setStatus('error');
-        }
+        } catch (e) { setError(e.message); setStatus('error'); }
     };
-
     const interval = setInterval(poll, 5000); 
     return () => clearInterval(interval);
   }, [status, taskData]);
 
-  if (status === 'error') return (
-    <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-400 text-xs font-mono break-all">
-        <AlertCircle size={16} className="flex-shrink-0" />
-        <span>{error}</span>
-    </div>
-  );
-
-  if (status === 'creating' || status === 'polling') return (
-    <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 flex flex-col gap-3 text-blue-300 font-mono text-xs w-full max-w-md">
-        <div className="flex items-center gap-3">
-            <Loader2 size={16} className="animate-spin text-blue-400" />
-            <div className="flex flex-col">
-                <span className="font-bold tracking-wider">ARTIX ENGINE</span>
-                <span className="opacity-70">{status === 'creating' ? 'Initializing...' : `Rendering Asset (${Math.round(progress)}%)`}</span>
-            </div>
-        </div>
-        <div className="h-1.5 w-full bg-blue-900/30 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-400 transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
-        </div>
-    </div>
-  );
-
-  if (status === 'success') return (
-    <div className="group relative overflow-hidden rounded-xl bg-black border border-emerald-500/30 max-w-md">
-        <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start z-10">
-             <div className="flex items-center gap-2 px-2 py-1 rounded bg-emerald-500/20 backdrop-blur border border-emerald-500/30">
-                 <Box size={12} className="text-emerald-400" />
-                 <span className="text-[10px] font-bold text-emerald-300">HYPER3D</span>
-             </div>
-             <a href={result?.model_url || "#"} download className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur rounded-lg text-white transition-colors">
-                 <Download size={16} />
-             </a>
-        </div>
-        <div className="aspect-square bg-zinc-900 flex items-center justify-center">
-            {result?.video_url ? (
-                <video src={result.video_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />
-            ) : (
-                 <div className="flex flex-col items-center text-zinc-500">
-                     <Box size={48} className="mb-2 opacity-50" />
-                     <span className="text-xs">Preview Unavailable</span>
-                 </div>
-            )}
-        </div>
-        <div className="p-3 bg-[#0c0c0c] border-t border-white/5 flex justify-between items-center">
-            <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[150px]">{prompt}</span>
-            <span className="text-[10px] text-emerald-500 flex items-center gap-1"><CheckCircle2 size={10} /> Ready</span>
-        </div>
-    </div>
-  );
-
+  if (status === 'error') return ( <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-400 text-xs font-mono break-all"><AlertCircle size={16} /><span>{error}</span></div> );
+  if (status === 'creating' || status === 'polling') return ( <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 flex flex-col gap-3 text-blue-300 font-mono text-xs w-full max-w-md"><div className="flex items-center gap-3"><Loader2 size={16} className="animate-spin text-blue-400" /><div className="flex flex-col"><span className="font-bold tracking-wider">ARTIX ENGINE</span><span className="opacity-70">{status === 'creating' ? 'Initializing...' : `Rendering Asset (${Math.round(progress)}%)`}</span></div></div><div className="h-1.5 w-full bg-blue-900/30 rounded-full overflow-hidden"><div className="h-full bg-blue-400 transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div></div></div> );
+  if (status === 'success') return ( <div className="group relative overflow-hidden rounded-xl bg-black border border-emerald-500/30 max-w-md"><div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start z-10"><div className="flex items-center gap-2 px-2 py-1 rounded bg-emerald-500/20 backdrop-blur border border-emerald-500/30"><Box size={12} className="text-emerald-400" /><span className="text-[10px] font-bold text-emerald-300">HYPER3D</span></div><a href={result?.model_url || "#"} download className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur rounded-lg text-white transition-colors"><Download size={16} /></a></div><div className="aspect-square bg-zinc-900 flex items-center justify-center">{result?.video_url ? (<video src={result.video_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />) : (<div className="flex flex-col items-center text-zinc-500"><Box size={48} className="mb-2 opacity-50" /><span className="text-xs">Preview Unavailable</span></div>)}</div><div className="p-3 bg-[#0c0c0c] border-t border-white/5 flex justify-between items-center"><span className="text-[10px] text-zinc-500 font-mono truncate max-w-[150px]">{prompt}</span><span className="text-[10px] text-emerald-500 flex items-center gap-1"><CheckCircle2 size={10} /> Ready</span></div></div> );
   return null;
 };
 
-// --- UI COMPONENTS ---
-
-// --- FIXED TYPEWRITER COMPONENT ---
-
+// --- TYPEWRITER ---
 const Typewriter = ({ text, speed = 5, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
-  
   useEffect(() => {
-    // 1. Reset text immediately when prop changes
     setDisplayedText(''); 
-    
-    // 2. If text is missing, short, or has complex artifacts, show instantly to avoid bugs
     if (!text || text.length < 5 || text.includes(':::')) {
         setDisplayedText(text || '');
         if(onComplete) onComplete();
         return;
     }
-
     let i = 0;
-    
-    // 3. Use an interval that slices the string (0 to i)
-    // This method is "unskippable" because it always grabs the full start of the string
     const timer = setInterval(() => {
       if (i <= text.length) {
         setDisplayedText(text.slice(0, i));
@@ -398,51 +277,21 @@ const Typewriter = ({ text, speed = 5, onComplete }) => {
         if (onComplete) onComplete();
       }
     }, speed);
-
     return () => clearInterval(timer);
   }, [text, speed, onComplete]);
 
-  // Render Logic (Markdown)
   const CodeBlock = ({ inline, className, children, ...props }) => {
     const match = /language-(\w+)/.exec(className || '');
     return !inline ? (
       <div className="my-4 rounded-lg bg-black/40 border border-emerald-500/10 overflow-hidden font-mono text-xs sm:text-sm shadow-inner">
-        <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5">
-          <span className="text-xs text-emerald-500/50 font-medium tracking-wider">
-            {match ? match[1].toUpperCase() : 'CODE'}
-          </span>
-          <div className="flex space-x-1.5">
-             <div className="w-2 h-2 rounded-full bg-white/10"></div>
-             <div className="w-2 h-2 rounded-full bg-white/10"></div>
-          </div>
-        </div>
-        <div className="p-4 overflow-x-auto text-emerald-100/90 custom-scrollbar">
-          <code className={className} {...props}>{children}</code>
-        </div>
+        <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5"><span className="text-xs text-emerald-500/50 font-medium tracking-wider">{match ? match[1].toUpperCase() : 'CODE'}</span><div className="flex space-x-1.5"><div className="w-2 h-2 rounded-full bg-white/10"></div><div className="w-2 h-2 rounded-full bg-white/10"></div></div></div><div className="p-4 overflow-x-auto text-emerald-100/90 custom-scrollbar"><code className={className} {...props}>{children}</code></div>
       </div>
-    ) : (
-      <code className="bg-emerald-900/30 text-emerald-300 px-1 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>
-    );
+    ) : (<code className="bg-emerald-900/30 text-emerald-300 px-1 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>);
   };
 
-  return (
-    <div className="markdown-content text-[13px] sm:text-[14px] leading-7 font-light tracking-wide text-zinc-200">
-      <ReactMarkdown 
-        children={displayedText} 
-        remarkPlugins={[remarkMath, remarkGfm]} 
-        rehypePlugins={[rehypeKatex]} 
-        components={{ 
-          code: CodeBlock, 
-          strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />, 
-          a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />, 
-          ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />, 
-          ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />, 
-          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, 
-        }} 
-      />
-    </div>
-  );
+  return ( <div className="markdown-content text-[13px] sm:text-[14px] leading-7 font-light tracking-wide text-zinc-200"><ReactMarkdown children={displayedText} remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ code: CodeBlock, strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />, a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />, p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, }} /></div> );
 };
+
 // --- MAIN APPLICATION ---
 
 export default function ArtixClone() {
@@ -452,71 +301,118 @@ export default function ArtixClone() {
   const [loading, setLoading] = useState(false);
   const [deepThink, setDeepThink] = useState(false);
   const [attachment, setAttachment] = useState(null); 
-  
-  // NEW: Preview Mode State
   const [canvasOpen, setCanvasOpen] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false); // Toggle between Code/Preview
+  const [previewMode, setPreviewMode] = useState(false); 
   const [canvasContent, setCanvasContent] = useState({ title: 'untitled.txt', language: 'text', content: '' });
   const [sidebarOpen, setSidebarOpen] = useState(false); 
-  const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false); // Fullscreen state
+  const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false); 
 
-  // --- NEW HAFSA GLITCH STATES AND REFS ---
+  // --- EASTER EGG STATES ---
   const [glitchActive, setGlitchActive] = useState(false);
   const [glitchMessage, setGlitchMessage] = useState(null);
+  const [gravityActive, setGravityActive] = useState(false);
+  const [daysCounter, setDaysCounter] = useState(null);
+  
   const flickerRef = useRef(null);
   const glitchTimeoutRef = useRef(null);
-  // --- END HAFSA GLITCH STATES ---
+
+  // Refs for gravity effect elements
+  const sidebarRef = useRef(null);
+  const chatRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
-  // Cleanup intervals/timeouts on unmount
   useEffect(() => {
     return () => {
       if (flickerRef.current) clearInterval(flickerRef.current);
       if (glitchTimeoutRef.current) clearTimeout(glitchTimeoutRef.current);
-      document.documentElement.classList.remove('glitch-flicker'); // Clean the class
+      document.documentElement.classList.remove('glitch-flicker'); 
     };
   }, []);
 
   useEffect(() => { if (window.innerWidth >= 768) setSidebarOpen(true); }, []);
   
-  // --- NEW HAFSA GLITCH TRIGGER LOGIC ---
+  // --- HAFSA GLITCH TRIGGER ---
   const handleHafsaTrigger = () => {
-    if (glitchActive) return; // Prevent re-triggering
+    if (glitchActive || gravityActive) return; 
 
     setGlitchActive(true);
-    setInput('Hafsa...'); // Set input text immediately for dramatic effect
+    setInput('Hafsa...'); 
 
-    // 1. Start Glitch Flicker: Toggles a global class for CSS effect
     flickerRef.current = setInterval(() => {
         document.documentElement.classList.toggle('glitch-flicker'); 
     }, 50); 
     
-    // 2. Glitch Disappearance (3 seconds in): Stops flicker, triggers blackout
     glitchTimeoutRef.current = setTimeout(() => {
         clearInterval(flickerRef.current);
         document.documentElement.classList.remove('glitch-flicker');
-        // The main content will now be heavily filtered/blacked out by CSS based on glitchActive
     }, 3000); 
 
-    // 3. Final Message Reveal (4.5 seconds in)
     glitchTimeoutRef.current = setTimeout(() => {
         setGlitchMessage("I love you ❤️");
     }, 4500); 
+  };
+
+  // --- GRAVITY / DATE TRIGGER ---
+  const triggerGravityEffect = () => {
+    if (gravityActive || glitchActive) return;
+    setGravityActive(true);
+    setInput(''); // Clear input
+
+    // 1. Calculate Days
+    // Date: 11/05/2025. Determining format:
+    // If MM/DD/YYYY: Nov 5th 2025. If DD/MM/YYYY: May 11th 2025.
+    // Assuming DD/MM/YYYY (May 11) is more common globally, or MM/DD (Nov 5) if US.
+    // Let's explicitly parse it as May 11, 2025 based on likely European/World usage,
+    // OR if user meant US date (Nov 5).
+    // Let's use the explicit date object:
+    
+    const targetDate = new Date(2025, 4, 11); // Year, MonthIndex (4=May), Day
+    // If you meant Nov 5th, change to: new Date(2025, 10, 5);
+
+    const today = new Date();
+    const diffTime = Math.abs(today - targetDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    
+    // 2. Apply "Falling" styles to refs
+    const elements = [sidebarRef.current, chatRef.current, canvasRef.current];
+    
+    elements.forEach(el => {
+        if(el) {
+            // Random rotation between -45 and 45 deg
+            const rotation = Math.random() * 90 - 45;
+            el.style.transition = "transform 2s cubic-bezier(0.5, 0, 0.5, 1), opacity 1.5s ease";
+            // Drop them off screen
+            el.style.transform = `translateY(150vh) rotate(${rotation}deg)`;
+            el.style.pointerEvents = "none";
+        }
+    });
+
+    // 3. Show Result Overlay after animation
+    setTimeout(() => {
+        setDaysCounter(diffDays);
+    }, 2000);
   };
 
   const handleInputChange = (e) => {
     const value = e.target.value;
     setInput(value);
 
-    // Check for trigger word (case-insensitive and only when not already glitching)
-    if (value.toLowerCase().includes('hafsa') && !glitchActive) {
+    const lowerVal = value.toLowerCase();
+
+    // HAFSA Trigger
+    if (lowerVal.includes('hafsa') && !glitchActive) {
         handleHafsaTrigger();
     }
+
+    // DATE Trigger (11/05/2025)
+    if (value.includes('11/05/2025') && !gravityActive) {
+        triggerGravityEffect();
+    }
   };
-  // --- END HAFSA GLITCH TRIGGER LOGIC ---
 
   const processAttachmentFile = (file) => {
     if (!file) return;
@@ -528,26 +424,12 @@ export default function ArtixClone() {
     reader.readAsDataURL(file);
   };
   
-  const handleFileSelect = (e) => { 
-    const file = e.target.files[0]; 
-    processAttachmentFile(file);
-  };
-
+  const handleFileSelect = (e) => { const file = e.target.files[0]; processAttachmentFile(file); };
   const handlePaste = (e) => {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     let file = null;
-    
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        file = items[i].getAsFile();
-        break;
-      }
-    }
-
-    if (file) {
-      e.preventDefault(); 
-      processAttachmentFile(file);
-    }
+    for (let i = 0; i < items.length; i++) { if (items[i].type.indexOf('image') !== -1) { file = items[i].getAsFile(); break; } }
+    if (file) { e.preventDefault(); processAttachmentFile(file); }
   };
   
   const clearAttachment = () => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
@@ -576,11 +458,8 @@ export default function ArtixClone() {
   const handleSend = async () => {
     if ((!input.trim() && !attachment) || loading) return;
     
-    // Check for Hafsa trigger before proceeding with actual send logic
-    if (input.toLowerCase().includes('hafsa') && !glitchActive) {
-      handleHafsaTrigger();
-      return; 
-    }
+    if (input.toLowerCase().includes('hafsa') && !glitchActive) { handleHafsaTrigger(); return; }
+    if (input.includes('11/05/2025') && !gravityActive) { triggerGravityEffect(); return; }
 
     const currentInput = input;
     const currentAttachment = attachment;
@@ -601,7 +480,7 @@ export default function ArtixClone() {
   return (
     <div className="flex h-[100dvh] w-full bg-black text-emerald-50 font-sans overflow-hidden fixed inset-0 overscroll-none selection:bg-emerald-500/30">
 
-      {/* --- HAFSA GLITCH OVERLAY (Highest Z-index for final message) --- */}
+      {/* --- HAFSA GLITCH OVERLAY --- */}
       {glitchMessage && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 transition-opacity duration-1000 opacity-100">
             <div className="text-7xl sm:text-9xl animate-pulse transition-all duration-1000 text-red-500 font-extrabold tracking-widest text-center shadow-2xl">
@@ -609,24 +488,37 @@ export default function ArtixClone() {
             </div>
         </div>
       )}
-      {/* --- END HAFSA GLITCH OVERLAY --- */}
+
+      {/* --- GRAVITY / DATE LOVE OVERLAY --- */}
+      {daysCounter !== null && (
+        <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black transition-opacity duration-1000">
+            <div className="animate-pulse mb-8">
+                <Heart size={100} className="text-red-500 fill-red-500 shadow-red-500 drop-shadow-[0_0_35px_rgba(220,38,38,0.8)]" />
+            </div>
+            <h1 className="text-4xl sm:text-6xl font-thin text-white mb-4 tracking-widest text-center">
+                We have been together for
+            </h1>
+            <div className="text-8xl sm:text-9xl font-bold text-emerald-500 drop-shadow-[0_0_20px_rgba(16,185,129,0.5)] font-mono">
+                {daysCounter}
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-light text-zinc-400 mt-4 tracking-[0.5em] uppercase">
+                DAYS
+            </h2>
+            <p className="mt-12 text-zinc-600 text-sm font-mono opacity-50">Since 11/05/2025</p>
+        </div>
+      )}
 
       {/* --- APP CONTENT WRAPPER --- */}
-      {/* Apply filter/blur during glitch, hide entirely for final message */}
       <div 
-        className={`flex h-full w-full ${glitchMessage ? 'hidden' : 'relative'}`}
+        className={`flex h-full w-full ${glitchMessage || daysCounter !== null ? 'hidden' : 'relative'}`}
         style={glitchActive 
-            ? { 
-                filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', 
-                opacity: 0.2, 
-                transition: 'filter 0.3s, opacity 0.3s' 
-              } 
+            ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } 
             : {}
         }
       >
         
-        {sidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden" onClick={() => setSidebarOpen(false)} />}
-        <div className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
+        {/* SIDEBAR */}
+        <div ref={sidebarRef} className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
           <div className="h-16 flex-shrink-0 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-[#0a0a0a] to-transparent justify-between">
             <div className="flex items-center space-x-3"><div className="w-8 h-8 bg-emerald-950/30 rounded-lg border border-emerald-500/30 flex items-center justify-center"><Cpu size={16} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-sm font-bold tracking-wider text-white">ARTIX<span className="text-emerald-500">AI</span></span><span className="text-[9px] text-emerald-500/50 font-mono uppercase tracking-[0.2em]">v6.3</span></div></div>
             <button onClick={() => setSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 cursor-pointer active:text-white"><X size={20} /></button>
@@ -638,7 +530,8 @@ export default function ArtixClone() {
           <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]"><button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}><div className="flex items-center space-x-3"><div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div><div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Thinking</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STANDARD"}</span></div></div><div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} /></button></div>
         </div>
 
-        <div className="flex-1 flex flex-col min-w-0 bg-black relative">
+        {/* CHAT AREA */}
+        <div ref={chatRef} className="flex-1 flex flex-col min-w-0 bg-black relative transition-transform duration-1000">
           <header className="absolute top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
             <div className="h-16 flex items-center justify-between px-4 md:px-6">
               <div className="flex items-center space-x-3 md:space-x-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer active:bg-white/10 rounded-full"><Menu size={24} /></button><button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:block p-2 hover:bg-white/5 rounded-lg text-zinc-500 transition-colors cursor-pointer">{sidebarOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button><div className="h-4 w-[1px] bg-white/10"></div><div className="flex flex-col min-w-0"><span className="text-xs font-medium text-zinc-200 tracking-wide truncate">{activeSession.title}</span><div className="flex items-center space-x-2"><span className="text-[10px] text-emerald-500/60 flex items-center gap-1"><div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>ONLINE</span></div></div></div>
@@ -673,28 +566,22 @@ export default function ArtixClone() {
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
                 <textarea 
                   value={input} 
-                  onChange={handleInputChange} // <-- UPDATED HANDLER
+                  onChange={handleInputChange} 
                   onKeyDown={handleKeyDown} 
                   onPaste={handlePaste} 
                   placeholder="Enter directive..." 
                   className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" 
                   rows={1} 
-                  disabled={glitchActive} // Disable input during the glitch
+                  disabled={glitchActive || gravityActive} 
                 />
-                <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment) || glitchActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
+                <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment) || glitchActive || gravityActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* CANVAS - Updated for Fullscreen */}
-        <div className={`
-  flex flex-col h-full // <--- ADDED THESE THREE CLASSES
-  transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]
-  bg-[#080808] border-l border-white/5 
-  ${isCanvasFullscreen ? 'fixed inset-0 z-[200]' : `fixed inset-0 z-[100] md:static md:inset-auto md:z-20 ${canvasOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 md:w-0 md:opacity-0 md:translate-x-20'} ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}`}
-  pt-[env(safe-area-inset-top)]
-`}>
+        {/* CANVAS */}
+        <div ref={canvasRef} className={`flex flex-col h-full transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] bg-[#080808] border-l border-white/5 ${isCanvasFullscreen ? 'fixed inset-0 z-[200]' : `fixed inset-0 z-[100] md:static md:inset-auto md:z-20 ${canvasOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 md:w-0 md:opacity-0 md:translate-x-20'} ${canvasOpen ? 'w-full md:w-[500px] xl:w-[650px]' : 'w-0'}`} pt-[env(safe-area-inset-top)]`}>
           <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-5 bg-[#080808]">
             <div className="flex items-center space-x-3 overflow-hidden"><div className="p-1.5 bg-emerald-900/20 rounded border border-emerald-500/20"><FileText size={14} className="text-emerald-400" /></div><div className="flex flex-col"><span className="text-xs font-medium text-zinc-200 truncate max-w-[200px]">{canvasContent.title}</span><span className="text-[9px] text-zinc-600 uppercase font-mono tracking-wider">{canvasContent.language}</span></div></div>
             <div className="flex items-center space-x-2">
@@ -710,7 +597,6 @@ export default function ArtixClone() {
         </div>
 
       </div>
-      {/* --- END APP CONTENT WRAPPER --- */}
     </div>
   );
 }
