@@ -10,21 +10,37 @@ import {
   Settings, Maximize2, Minimize2, Plus, FileText, X, Save, Copy, 
   Layout, Clock, Trash2, ChevronRight, Image as ImageIcon, 
   Paperclip, Loader2, Download, Menu, Box, RotateCw, CheckCircle2, AlertCircle,
-  Play, Eye, EyeOff, Heart, Sparkles 
+  Play, Eye, EyeOff, Heart, Sparkles, Camera, Film
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v7.3: The Core Update
+ * ARTIX-AI v7.5: The Multimedia Update
  * * FEATURES:
  * - Gravity Easter Egg (11/05/2025)
  * - Hafsa Glitch (Hafsa)
  * - Eiffel Tower Animation (Paris)
- * - NEW: ARTIX Core Video Loop (Artix)
+ * - Artix Video Loop (Artix)
+ * - Photo & Video Album Gallery (Muah)
  */
 
-// --- CORE CONFIGURATION ---
+// --- CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "7.3.0-Core";
+const VERSION = "7.5.0";
+
+// --- YOUR MEDIA CONFIGURATION ---
+// Add your files here. Use 'image' or 'video' for the type.
+// Place files in the 'public' folder.
+const ALBUM_MEDIA = [
+  { type: 'image', src: '/photo1.jpeg' },
+  { type: 'image', src: '/photo2.jpeg' },
+  { type: 'video', src: '/video1.MP4' }, // Example Video
+  { type: 'image', src: '/photo3.jpeg' },
+  { type: 'video', src: '/video2.mp4' }, // Example Video
+  { type: 'image', src: '/photo4.JPEG' },
+  { type: 'video', src: '/video3.mp4' },
+  { type: 'video', src: '/video4.mp4' },
+  // Add as many as you want...
+];
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -297,59 +313,26 @@ const Typewriter = ({ text, speed = 5, onComplete }) => {
 const EiffelTowerAnimation = () => {
     return (
         <div className="fixed inset-0 z-[3000] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center overflow-hidden animate-in fade-in duration-1000">
-            {/* BACKGROUND GLOW */}
             <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/20 via-transparent to-black pointer-events-none"></div>
-            
-            {/* FLOATING SPARKLES */}
             <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
                 {[...Array(25)].map((_, i) => (
-                    <div key={i} className="absolute animate-pulse text-yellow-100/40"
-                         style={{
-                             top: `${Math.random() * 100}%`,
-                             left: `${Math.random() * 100}%`,
-                             animationDelay: `${Math.random() * 2}s`,
-                             animationDuration: `${2 + Math.random() * 3}s`
-                         }}>
+                    <div key={i} className="absolute animate-pulse text-yellow-100/40" style={{ top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 2}s`, animationDuration: `${2 + Math.random() * 3}s` }}>
                         <Sparkles size={Math.random() > 0.5 ? 10 : 20} />
                     </div>
                 ))}
             </div>
-
-            {/* SVG DRAWING ANIMATION */}
             <div className="relative z-10 drop-shadow-[0_0_15px_rgba(234,179,8,0.3)]">
                 <svg width="320" height="480" viewBox="0 0 400 600" className="stroke-emerald-200/90 fill-none" style={{ strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
-                    <defs>
-                        <linearGradient id="parisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#34d399" />
-                            <stop offset="50%" stopColor="#fbbf24" />
-                            <stop offset="100%" stopColor="#10b981" />
-                        </linearGradient>
-                    </defs>
-                    <style>
-                        {`
-                            .draw-path {
-                                stroke-dasharray: 2000;
-                                stroke-dashoffset: 2000;
-                                animation: draw 4.5s ease-in-out forwards;
-                                stroke: url(#parisGrad);
-                            }
-                            @keyframes draw {
-                                to { stroke-dashoffset: 0; }
-                            }
-                        `}
-                    </style>
+                    <defs><linearGradient id="parisGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#34d399" /><stop offset="50%" stopColor="#fbbf24" /><stop offset="100%" stopColor="#10b981" /></linearGradient></defs>
+                    <style>{`.draw-path { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 4.5s ease-in-out forwards; stroke: url(#parisGrad); } @keyframes draw { to { stroke-dashoffset: 0; } }`}</style>
                     <path className="draw-path" d="M200,20 L200,80 M200,20 L195,80 L205,80 L200,20 M185,150 L215,150 L210,80 L190,80 L185,150 M170,280 L230,280 L215,150 L185,150 L170,280" />
                     <path className="draw-path" d="M170,280 L140,400 L110,550 L160,550 L175,400 M230,280 L260,400 L290,550 L240,550 L225,400" />
                     <path className="draw-path" d="M140,550 Q200,450 260,550" />
                     <path className="draw-path" d="M140,400 L260,400 M175,400 L225,400 M190,150 L210,150 M160,530 L240,530" />
                 </svg>
             </div>
-
-            {/* TEXT REVEAL */}
             <div className="mt-8 text-center z-10">
-                <h1 className="text-6xl font-thin tracking-[0.5em] text-transparent bg-clip-text bg-gradient-to-r from-emerald-200 via-yellow-100 to-emerald-200 animate-pulse" style={{ animationDuration: '4s' }}>
-                    PARIS
-                </h1>
+                <h1 className="text-6xl font-thin tracking-[0.5em] text-transparent bg-clip-text bg-gradient-to-r from-emerald-200 via-yellow-100 to-emerald-200 animate-pulse" style={{ animationDuration: '4s' }}>PARIS</h1>
                 <p className="text-[10px] text-emerald-500/50 uppercase tracking-widest mt-2 font-mono">Je t'aime</p>
             </div>
         </div>
@@ -377,18 +360,14 @@ export default function ArtixClone() {
   const [gravityActive, setGravityActive] = useState(false);
   const [daysCounter, setDaysCounter] = useState(null);
   const [parisActive, setParisActive] = useState(false);
-  
-  // NEW: ARTIX Video State
   const [artixActive, setArtixActive] = useState(false);
+  const [muahActive, setMuahActive] = useState(false);
 
   const flickerRef = useRef(null);
   const glitchTimeoutRef = useRef(null);
-
-  // Refs for gravity effect elements
   const sidebarRef = useRef(null);
   const chatRef = useRef(null);
   const canvasRef = useRef(null);
-
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
@@ -403,82 +382,48 @@ export default function ArtixClone() {
 
   useEffect(() => { if (window.innerWidth >= 768) setSidebarOpen(true); }, []);
   
-  // --- HAFSA GLITCH TRIGGER ---
+  // --- TRIGGERS ---
   const handleHafsaTrigger = () => {
-    if (glitchActive || gravityActive || parisActive || artixActive) return; 
-
+    if (glitchActive || gravityActive || parisActive || artixActive || muahActive) return; 
     setGlitchActive(true);
     setInput('Hafsa...'); 
-
-    flickerRef.current = setInterval(() => {
-        document.documentElement.classList.toggle('glitch-flicker'); 
-    }, 50); 
-    
-    glitchTimeoutRef.current = setTimeout(() => {
-        clearInterval(flickerRef.current);
-        document.documentElement.classList.remove('glitch-flicker');
-    }, 3000); 
-
-    glitchTimeoutRef.current = setTimeout(() => {
-        setGlitchMessage("I love you ❤️");
-    }, 4500); 
+    flickerRef.current = setInterval(() => { document.documentElement.classList.toggle('glitch-flicker'); }, 50); 
+    glitchTimeoutRef.current = setTimeout(() => { clearInterval(flickerRef.current); document.documentElement.classList.remove('glitch-flicker'); }, 3000); 
+    glitchTimeoutRef.current = setTimeout(() => { setGlitchMessage("I love you ❤️"); }, 4500); 
   };
 
-  // --- GRAVITY / DATE TRIGGER ---
   const triggerGravityEffect = () => {
-    if (gravityActive || glitchActive || parisActive || artixActive) return;
+    if (gravityActive || glitchActive || parisActive || artixActive || muahActive) return;
     setGravityActive(true);
     setInput(''); 
-
     const targetDate = new Date(2025, 4, 11); 
     const today = new Date();
     const diffTime = Math.abs(today - targetDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    
     const elements = [sidebarRef.current, chatRef.current, canvasRef.current];
-    elements.forEach(el => {
-        if(el) {
-            const rotation = Math.random() * 90 - 45;
-            el.style.transition = "transform 2s cubic-bezier(0.5, 0, 0.5, 1), opacity 1.5s ease";
-            el.style.transform = `translateY(150vh) rotate(${rotation}deg)`;
-            el.style.pointerEvents = "none";
-        }
-    });
-
-    setTimeout(() => {
-        setDaysCounter(diffDays);
-    }, 2000);
+    elements.forEach(el => { if(el) { const rotation = Math.random() * 90 - 45; el.style.transition = "transform 2s cubic-bezier(0.5, 0, 0.5, 1), opacity 1.5s ease"; el.style.transform = `translateY(150vh) rotate(${rotation}deg)`; el.style.pointerEvents = "none"; } });
+    setTimeout(() => { setDaysCounter(diffDays); }, 2000);
   };
 
   const handleInputChange = (e) => {
     const value = e.target.value;
     setInput(value);
-
     const lowerVal = value.toLowerCase();
 
-    // 1. HAFSA Trigger
-    if (lowerVal.includes('hafsa') && !glitchActive) {
-        handleHafsaTrigger();
-    }
-
-    // 2. DATE Trigger (11/05/2025)
-    if (value.includes('11/05/2025') && !gravityActive) {
-        triggerGravityEffect();
-    }
-
-    // 3. PARIS Trigger
-    if (lowerVal.includes('paris') && !parisActive && !glitchActive && !gravityActive && !artixActive) {
+    // TRIGGER CHECKER
+    if (lowerVal.includes('hafsa') && !glitchActive) handleHafsaTrigger();
+    else if (value.includes('11/05/2025') && !gravityActive) triggerGravityEffect();
+    else if (lowerVal.includes('paris') && !parisActive && !glitchActive && !gravityActive && !artixActive && !muahActive) {
         setParisActive(true);
-        setTimeout(() => {
-            setParisActive(false);
-            setInput(''); 
-        }, 5000); 
+        setTimeout(() => { setParisActive(false); setInput(''); }, 5000); 
     }
-
-    // 4. ARTIX Trigger (Video Loop)
-    if (lowerVal.includes('artix') && !artixActive && !parisActive && !glitchActive && !gravityActive) {
+    else if (lowerVal.includes('artix') && !artixActive && !parisActive && !glitchActive && !gravityActive && !muahActive) {
         setArtixActive(true);
-        setInput(''); // Clear input
+        setInput('');
+    }
+    else if (lowerVal.includes('muah') && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive) {
+        setMuahActive(true);
+        setInput('');
     }
   };
 
@@ -530,16 +475,9 @@ export default function ArtixClone() {
     const lowerInput = input.toLowerCase();
     if (lowerInput.includes('hafsa') && !glitchActive) { handleHafsaTrigger(); return; }
     if (input.includes('11/05/2025') && !gravityActive) { triggerGravityEffect(); return; }
-    if (lowerInput.includes('paris') && !parisActive) { 
-        setParisActive(true); 
-        setTimeout(() => { setParisActive(false); setInput(''); }, 5000); 
-        return; 
-    }
-    if (lowerInput.includes('artix') && !artixActive) {
-        setArtixActive(true);
-        setInput('');
-        return;
-    }
+    if (lowerInput.includes('paris') && !parisActive) { setParisActive(true); setTimeout(() => { setParisActive(false); setInput(''); }, 5000); return; }
+    if (lowerInput.includes('artix') && !artixActive) { setArtixActive(true); setInput(''); return; }
+    if (lowerInput.includes('muah') && !muahActive) { setMuahActive(true); setInput(''); return; }
 
     const currentInput = input;
     const currentAttachment = attachment;
@@ -568,32 +506,77 @@ export default function ArtixClone() {
       {/* 2. ARTIX VIDEO OVERLAY */}
       {artixActive && (
         <div className="fixed inset-0 z-[5000] bg-black flex items-center justify-center animate-in fade-in duration-500">
-            {/* IMPORTANT: Replace '/artix_video.mp4' with your actual video path.
-                If using Vite, put the file in the 'public' folder.
-            */}
-            <video 
-                src="/artix_video.mp4" 
-                autoPlay 
-                loop 
-                muted // Muted to ensure autoplay works in all browsers
-                playsInline
-                className="w-full h-full object-cover"
-            />
-            {/* EXIT BUTTON */}
-            <button 
-                onClick={() => setArtixActive(false)}
-                className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition-all duration-300 z-50 backdrop-blur-sm cursor-pointer border border-white/10"
-            >
-                <X size={24} />
-            </button>
-            {/* OPTIONAL BRANDING */}
-            <div className="absolute bottom-10 left-10 z-40 pointer-events-none">
-               <h1 className="text-4xl font-black text-white/20 tracking-[0.3em] select-none">ARTIX CORE</h1>
-            </div>
+            <video src="/artix_video.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+            <button onClick={() => setArtixActive(false)} className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition-all duration-300 z-50 backdrop-blur-sm cursor-pointer border border-white/10"><X size={24} /></button>
+            <div className="absolute bottom-10 left-10 z-40 pointer-events-none"><h1 className="text-4xl font-black text-white/20 tracking-[0.3em] select-none">ARTIX CORE</h1></div>
         </div>
       )}
 
-      {/* 3. HAFSA GLITCH OVERLAY */}
+      {/* 3. MUAH ALBUM OVERLAY (UPDATED FOR VIDEO) */}
+      {muahActive && (
+        <div className="fixed inset-0 z-[6000] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in zoom-in-95 duration-500 overflow-hidden">
+             {/* Header */}
+             <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-50">
+                <div className="flex items-center space-x-3">
+                    <Heart className="text-red-500 fill-red-500 animate-pulse" />
+                    <span className="text-2xl font-light tracking-[0.2em] text-white">I HATE MY LIFE IF YOU FIND THIS</span>
+                </div>
+                <button onClick={() => setMuahActive(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors text-zinc-400 hover:text-white cursor-pointer"><X size={24} /></button>
+             </div>
+             
+             {/* Gallery Grid */}
+             <div className="w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar pt-24 pb-20 px-4 sm:px-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
+                    {ALBUM_MEDIA.map((item, index) => (
+                        <div key={index} className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl hover:scale-[1.02] transition-transform duration-500">
+                             
+                             {/* MEDIA RENDER LOGIC */}
+                             {item.type === 'video' ? (
+                                <>
+                                    <video 
+                                        src={item.src} 
+                                        autoPlay 
+                                        loop 
+                                        muted 
+                                        playsInline 
+                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500"
+                                    />
+                                    {/* Video Indicator */}
+                                    <div className="absolute top-3 right-3 p-1.5 bg-black/60 rounded-full backdrop-blur-sm z-20">
+                                        <Film size={14} className="text-white/80" />
+                                    </div>
+                                </>
+                             ) : (
+                                <img 
+                                    src={item.src} 
+                                    alt={`Memory ${index + 1}`} 
+                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500"
+                                    onError={(e) => {
+                                        e.target.onerror = null; 
+                                        e.target.src = `https://placehold.co/600x800/18181b/10b981?text=Photo+${index+1}`; 
+                                    }}
+                                />
+                             )}
+
+                             {/* Caption Overlay */}
+                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-10">
+                                <span className="text-emerald-400 font-mono text-xs">
+                                    {item.type === 'video' ? `VID_00${index + 1}` : `IMG_00${index + 1}`}
+                                </span>
+                             </div>
+                        </div>
+                    ))}
+                    {/* Add More Button (Mock) */}
+                    <div className="aspect-[3/4] rounded-2xl bg-white/5 border border-dashed border-white/10 flex flex-col items-center justify-center text-zinc-600 hover:bg-white/10 hover:text-zinc-400 transition-colors cursor-pointer group">
+                        <Camera size={32} className="mb-2 group-hover:scale-110 transition-transform" />
+                        <span className="text-xs tracking-widest uppercase">Add Memory</span>
+                    </div>
+                </div>
+             </div>
+        </div>
+      )}
+
+      {/* 4. HAFSA GLITCH OVERLAY */}
       {glitchMessage && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 transition-opacity duration-1000 opacity-100">
             <div className="text-7xl sm:text-9xl animate-pulse transition-all duration-1000 text-red-500 font-extrabold tracking-widest text-center shadow-2xl">
@@ -602,28 +585,20 @@ export default function ArtixClone() {
         </div>
       )}
 
-      {/* 4. GRAVITY / DATE LOVE OVERLAY */}
+      {/* 5. GRAVITY / DATE LOVE OVERLAY */}
       {daysCounter !== null && (
         <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black transition-opacity duration-1000">
-            <div className="animate-pulse mb-8">
-                <Heart size={100} className="text-red-500 fill-red-500 shadow-red-500 drop-shadow-[0_0_35px_rgba(220,38,38,0.8)]" />
-            </div>
-            <h1 className="text-4xl sm:text-6xl font-thin text-white mb-4 tracking-widest text-center">
-                We have been together for
-            </h1>
-            <div className="text-8xl sm:text-9xl font-bold text-emerald-500 drop-shadow-[0_0_20px_rgba(16,185,129,0.5)] font-mono">
-                {daysCounter}
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-light text-zinc-400 mt-4 tracking-[0.5em] uppercase">
-                DAYS
-            </h2>
+            <div className="animate-pulse mb-8"><Heart size={100} className="text-red-500 fill-red-500 shadow-red-500 drop-shadow-[0_0_35px_rgba(220,38,38,0.8)]" /></div>
+            <h1 className="text-4xl sm:text-6xl font-thin text-white mb-4 tracking-widest text-center">We have been together for</h1>
+            <div className="text-8xl sm:text-9xl font-bold text-emerald-500 drop-shadow-[0_0_20px_rgba(16,185,129,0.5)] font-mono">{daysCounter}</div>
+            <h2 className="text-2xl sm:text-3xl font-light text-zinc-400 mt-4 tracking-[0.5em] uppercase">DAYS</h2>
             <p className="mt-12 text-zinc-600 text-sm font-mono opacity-50">Since 11/05/2025</p>
         </div>
       )}
 
       {/* --- APP CONTENT WRAPPER --- */}
       <div 
-        className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive ? 'hidden' : 'relative'}`}
+        className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive ? 'hidden' : 'relative'}`}
         style={glitchActive 
             ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } 
             : {}
@@ -677,16 +652,7 @@ export default function ArtixClone() {
               <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
               <div className="relative flex items-end bg-[#0c0c0c]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:border-emerald-500/50 transition-colors">
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
-                <textarea 
-                  value={input} 
-                  onChange={handleInputChange} 
-                  onKeyDown={handleKeyDown} 
-                  onPaste={handlePaste} 
-                  placeholder="Enter directive..." 
-                  className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" 
-                  rows={1} 
-                  disabled={glitchActive || gravityActive} 
-                />
+                <textarea value={input} onChange={handleInputChange} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder="Enter directive..." className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" rows={1} disabled={glitchActive || gravityActive} />
                 <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment) || glitchActive || gravityActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
               </div>
             </div>
