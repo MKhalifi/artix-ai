@@ -10,20 +10,21 @@ import {
   Settings, Maximize2, Minimize2, Plus, FileText, X, Save, Copy, 
   Layout, Clock, Trash2, ChevronRight, Image as ImageIcon, 
   Paperclip, Loader2, Download, Menu, Box, RotateCw, CheckCircle2, AlertCircle,
-  Play, Eye, EyeOff, Heart // Added Heart Icon
+  Play, Eye, EyeOff, Heart, Sparkles 
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v7.0: Love & Gravity Update
+ * ARTIX-AI v7.3: The Core Update
  * * FEATURES:
- * - Existing features (3D, Glitch, Canvas).
- * - NEW: Gravity Easter Egg (Trigger: 11/05/2025).
- * - NEW: Days Counter Calculator.
+ * - Gravity Easter Egg (11/05/2025)
+ * - Hafsa Glitch (Hafsa)
+ * - Eiffel Tower Animation (Paris)
+ * - NEW: ARTIX Core Video Loop (Artix)
  */
 
 // --- CORE CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "7.0.0-Love";
+const VERSION = "7.3.0-Core";
 
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
@@ -292,6 +293,69 @@ const Typewriter = ({ text, speed = 5, onComplete }) => {
   return ( <div className="markdown-content text-[13px] sm:text-[14px] leading-7 font-light tracking-wide text-zinc-200"><ReactMarkdown children={displayedText} remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ code: CodeBlock, strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />, a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />, p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, }} /></div> );
 };
 
+// --- EIFFEL TOWER AESTHETIC COMPONENT ---
+const EiffelTowerAnimation = () => {
+    return (
+        <div className="fixed inset-0 z-[3000] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center overflow-hidden animate-in fade-in duration-1000">
+            {/* BACKGROUND GLOW */}
+            <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/20 via-transparent to-black pointer-events-none"></div>
+            
+            {/* FLOATING SPARKLES */}
+            <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
+                {[...Array(25)].map((_, i) => (
+                    <div key={i} className="absolute animate-pulse text-yellow-100/40"
+                         style={{
+                             top: `${Math.random() * 100}%`,
+                             left: `${Math.random() * 100}%`,
+                             animationDelay: `${Math.random() * 2}s`,
+                             animationDuration: `${2 + Math.random() * 3}s`
+                         }}>
+                        <Sparkles size={Math.random() > 0.5 ? 10 : 20} />
+                    </div>
+                ))}
+            </div>
+
+            {/* SVG DRAWING ANIMATION */}
+            <div className="relative z-10 drop-shadow-[0_0_15px_rgba(234,179,8,0.3)]">
+                <svg width="320" height="480" viewBox="0 0 400 600" className="stroke-emerald-200/90 fill-none" style={{ strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                    <defs>
+                        <linearGradient id="parisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#34d399" />
+                            <stop offset="50%" stopColor="#fbbf24" />
+                            <stop offset="100%" stopColor="#10b981" />
+                        </linearGradient>
+                    </defs>
+                    <style>
+                        {`
+                            .draw-path {
+                                stroke-dasharray: 2000;
+                                stroke-dashoffset: 2000;
+                                animation: draw 4.5s ease-in-out forwards;
+                                stroke: url(#parisGrad);
+                            }
+                            @keyframes draw {
+                                to { stroke-dashoffset: 0; }
+                            }
+                        `}
+                    </style>
+                    <path className="draw-path" d="M200,20 L200,80 M200,20 L195,80 L205,80 L200,20 M185,150 L215,150 L210,80 L190,80 L185,150 M170,280 L230,280 L215,150 L185,150 L170,280" />
+                    <path className="draw-path" d="M170,280 L140,400 L110,550 L160,550 L175,400 M230,280 L260,400 L290,550 L240,550 L225,400" />
+                    <path className="draw-path" d="M140,550 Q200,450 260,550" />
+                    <path className="draw-path" d="M140,400 L260,400 M175,400 L225,400 M190,150 L210,150 M160,530 L240,530" />
+                </svg>
+            </div>
+
+            {/* TEXT REVEAL */}
+            <div className="mt-8 text-center z-10">
+                <h1 className="text-6xl font-thin tracking-[0.5em] text-transparent bg-clip-text bg-gradient-to-r from-emerald-200 via-yellow-100 to-emerald-200 animate-pulse" style={{ animationDuration: '4s' }}>
+                    PARIS
+                </h1>
+                <p className="text-[10px] text-emerald-500/50 uppercase tracking-widest mt-2 font-mono">Je t'aime</p>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN APPLICATION ---
 
 export default function ArtixClone() {
@@ -312,7 +376,11 @@ export default function ArtixClone() {
   const [glitchMessage, setGlitchMessage] = useState(null);
   const [gravityActive, setGravityActive] = useState(false);
   const [daysCounter, setDaysCounter] = useState(null);
+  const [parisActive, setParisActive] = useState(false);
   
+  // NEW: ARTIX Video State
+  const [artixActive, setArtixActive] = useState(false);
+
   const flickerRef = useRef(null);
   const glitchTimeoutRef = useRef(null);
 
@@ -337,7 +405,7 @@ export default function ArtixClone() {
   
   // --- HAFSA GLITCH TRIGGER ---
   const handleHafsaTrigger = () => {
-    if (glitchActive || gravityActive) return; 
+    if (glitchActive || gravityActive || parisActive || artixActive) return; 
 
     setGlitchActive(true);
     setInput('Hafsa...'); 
@@ -358,40 +426,25 @@ export default function ArtixClone() {
 
   // --- GRAVITY / DATE TRIGGER ---
   const triggerGravityEffect = () => {
-    if (gravityActive || glitchActive) return;
+    if (gravityActive || glitchActive || parisActive || artixActive) return;
     setGravityActive(true);
-    setInput(''); // Clear input
+    setInput(''); 
 
-    // 1. Calculate Days
-    // Date: 11/05/2025. Determining format:
-    // If MM/DD/YYYY: Nov 5th 2025. If DD/MM/YYYY: May 11th 2025.
-    // Assuming DD/MM/YYYY (May 11) is more common globally, or MM/DD (Nov 5) if US.
-    // Let's explicitly parse it as May 11, 2025 based on likely European/World usage,
-    // OR if user meant US date (Nov 5).
-    // Let's use the explicit date object:
-    
-    const targetDate = new Date(2025, 4, 11); // Year, MonthIndex (4=May), Day
-    // If you meant Nov 5th, change to: new Date(2025, 10, 5);
-
+    const targetDate = new Date(2025, 4, 11); 
     const today = new Date();
     const diffTime = Math.abs(today - targetDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
     
-    // 2. Apply "Falling" styles to refs
     const elements = [sidebarRef.current, chatRef.current, canvasRef.current];
-    
     elements.forEach(el => {
         if(el) {
-            // Random rotation between -45 and 45 deg
             const rotation = Math.random() * 90 - 45;
             el.style.transition = "transform 2s cubic-bezier(0.5, 0, 0.5, 1), opacity 1.5s ease";
-            // Drop them off screen
             el.style.transform = `translateY(150vh) rotate(${rotation}deg)`;
             el.style.pointerEvents = "none";
         }
     });
 
-    // 3. Show Result Overlay after animation
     setTimeout(() => {
         setDaysCounter(diffDays);
     }, 2000);
@@ -403,14 +456,29 @@ export default function ArtixClone() {
 
     const lowerVal = value.toLowerCase();
 
-    // HAFSA Trigger
+    // 1. HAFSA Trigger
     if (lowerVal.includes('hafsa') && !glitchActive) {
         handleHafsaTrigger();
     }
 
-    // DATE Trigger (11/05/2025)
+    // 2. DATE Trigger (11/05/2025)
     if (value.includes('11/05/2025') && !gravityActive) {
         triggerGravityEffect();
+    }
+
+    // 3. PARIS Trigger
+    if (lowerVal.includes('paris') && !parisActive && !glitchActive && !gravityActive && !artixActive) {
+        setParisActive(true);
+        setTimeout(() => {
+            setParisActive(false);
+            setInput(''); 
+        }, 5000); 
+    }
+
+    // 4. ARTIX Trigger (Video Loop)
+    if (lowerVal.includes('artix') && !artixActive && !parisActive && !glitchActive && !gravityActive) {
+        setArtixActive(true);
+        setInput(''); // Clear input
     }
   };
 
@@ -458,8 +526,20 @@ export default function ArtixClone() {
   const handleSend = async () => {
     if ((!input.trim() && !attachment) || loading) return;
     
-    if (input.toLowerCase().includes('hafsa') && !glitchActive) { handleHafsaTrigger(); return; }
+    // Check triggers before sending
+    const lowerInput = input.toLowerCase();
+    if (lowerInput.includes('hafsa') && !glitchActive) { handleHafsaTrigger(); return; }
     if (input.includes('11/05/2025') && !gravityActive) { triggerGravityEffect(); return; }
+    if (lowerInput.includes('paris') && !parisActive) { 
+        setParisActive(true); 
+        setTimeout(() => { setParisActive(false); setInput(''); }, 5000); 
+        return; 
+    }
+    if (lowerInput.includes('artix') && !artixActive) {
+        setArtixActive(true);
+        setInput('');
+        return;
+    }
 
     const currentInput = input;
     const currentAttachment = attachment;
@@ -480,7 +560,40 @@ export default function ArtixClone() {
   return (
     <div className="flex h-[100dvh] w-full bg-black text-emerald-50 font-sans overflow-hidden fixed inset-0 overscroll-none selection:bg-emerald-500/30">
 
-      {/* --- HAFSA GLITCH OVERLAY --- */}
+      {/* --- EASTER EGG OVERLAYS --- */}
+      
+      {/* 1. PARIS OVERLAY */}
+      {parisActive && <EiffelTowerAnimation />}
+
+      {/* 2. ARTIX VIDEO OVERLAY */}
+      {artixActive && (
+        <div className="fixed inset-0 z-[5000] bg-black flex items-center justify-center animate-in fade-in duration-500">
+            {/* IMPORTANT: Replace '/artix_video.mp4' with your actual video path.
+                If using Vite, put the file in the 'public' folder.
+            */}
+            <video 
+                src="/artix_video.mp4" 
+                autoPlay 
+                loop 
+                muted // Muted to ensure autoplay works in all browsers
+                playsInline
+                className="w-full h-full object-cover"
+            />
+            {/* EXIT BUTTON */}
+            <button 
+                onClick={() => setArtixActive(false)}
+                className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition-all duration-300 z-50 backdrop-blur-sm cursor-pointer border border-white/10"
+            >
+                <X size={24} />
+            </button>
+            {/* OPTIONAL BRANDING */}
+            <div className="absolute bottom-10 left-10 z-40 pointer-events-none">
+               <h1 className="text-4xl font-black text-white/20 tracking-[0.3em] select-none">ARTIX CORE</h1>
+            </div>
+        </div>
+      )}
+
+      {/* 3. HAFSA GLITCH OVERLAY */}
       {glitchMessage && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 transition-opacity duration-1000 opacity-100">
             <div className="text-7xl sm:text-9xl animate-pulse transition-all duration-1000 text-red-500 font-extrabold tracking-widest text-center shadow-2xl">
@@ -489,7 +602,7 @@ export default function ArtixClone() {
         </div>
       )}
 
-      {/* --- GRAVITY / DATE LOVE OVERLAY --- */}
+      {/* 4. GRAVITY / DATE LOVE OVERLAY */}
       {daysCounter !== null && (
         <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black transition-opacity duration-1000">
             <div className="animate-pulse mb-8">
@@ -510,7 +623,7 @@ export default function ArtixClone() {
 
       {/* --- APP CONTENT WRAPPER --- */}
       <div 
-        className={`flex h-full w-full ${glitchMessage || daysCounter !== null ? 'hidden' : 'relative'}`}
+        className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive ? 'hidden' : 'relative'}`}
         style={glitchActive 
             ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } 
             : {}
