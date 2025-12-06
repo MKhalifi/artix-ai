@@ -15,19 +15,20 @@ import {
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v7.9: The Smooth Input Update
+ * ARTIX-AI v7.9.2: The Visual Fix Update
  * * FEATURES:
+ * - CR7 Easter Egg (Fixed Aspect Ratio)
  * - Gravity Easter Egg (11/05/2025)
  * - Hafsa Glitch (Hafsa)
  * - Eiffel Tower Animation (Paris)
  * - Artix Video Loop (Artix)
  * - Photo & Video Album Gallery (Muah)
- * - Real-Time Multiplayer Pong (PeerJS) - High Performance Input
+ * - Real-Time Multiplayer Pong (PeerJS)
  */
 
 // --- CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "7.5.0";
+const VERSION = "7.9.2";
 
 // --- YOUR MEDIA CONFIGURATION ---
 const ALBUM_MEDIA = [
@@ -205,23 +206,19 @@ const Typewriter = ({ text, speed = 5, onComplete }) => {
 // --- MULTIPLAYER PONG COMPONENT ---
 const MultiplayerPong = ({ onClose }) => {
   const canvasRef = useRef(null);
-  
-  // Connection State
   const [peer, setPeer] = useState(null);
   const [conn, setConn] = useState(null);
   const [myId, setMyId] = useState('');
   const [joinId, setJoinId] = useState('');
-  const [mode, setMode] = useState('menu'); // 'menu', 'hosting', 'joining', 'playing'
-  const [role, setRole] = useState(null); // 'host', 'client'
+  const [mode, setMode] = useState('menu'); 
+  const [role, setRole] = useState(null); 
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
   const [statusMsg, setStatusMsg] = useState('');
 
-  // Game Settings
-  const INITIAL_SPEED = 1; // Balanced
-  const MAX_SPEED = 8;
-  const PADDLE_SPEED = 7; // Pixels per frame (at 60fps = 540px/sec) - VERY SMOOTH
+  const INITIAL_SPEED = 4;
+  const MAX_SPEED = 10;
+  const PADDLE_SPEED = 9; 
 
-  // Game State (Refs for performance)
   const gameState = useRef({
     ball: { x: 400, y: 225, dx: INITIAL_SPEED, dy: INITIAL_SPEED },
     p1: { y: 185 },
@@ -229,29 +226,19 @@ const MultiplayerPong = ({ onClose }) => {
     score: { p1: 0, p2: 0 }
   });
   const myPaddle = useRef(185);
-  
-  // Input State (The magic fix for smoothness)
   const keysPressed = useRef({ up: false, down: false });
 
-  // --- INITIALIZE PEER ---
   useEffect(() => {
     const randomId = 'ARTIX-' + Math.floor(1000 + Math.random() * 9000);
     const newPeer = new Peer(randomId);
-    
-    newPeer.on('open', (id) => {
-      setMyId(id);
-      console.log('My ID:', id);
-    });
-
+    newPeer.on('open', (id) => setMyId(id));
     newPeer.on('connection', (connection) => {
-      console.log('Incoming connection...');
       setConn(connection);
       setRole('host');
       setMode('playing');
       setStatusMsg('CONNECTED');
       setupConnectionHandlers(connection, 'host');
     });
-
     setPeer(newPeer);
     return () => newPeer.destroy();
   }, []);
@@ -259,9 +246,7 @@ const MultiplayerPong = ({ onClose }) => {
   const setupConnectionHandlers = (connection, currentRole) => {
     connection.on('data', (data) => {
       if (currentRole === 'host') {
-        if (data.type === 'INPUT') {
-            gameState.current.p2.y = data.y;
-        }
+        if (data.type === 'INPUT') { gameState.current.p2.y = data.y; }
       } else {
         if (data.type === 'UPDATE') {
             gameState.current = data.state;
@@ -269,7 +254,6 @@ const MultiplayerPong = ({ onClose }) => {
         }
       }
     });
-    
     connection.on('close', () => {
         setStatusMsg("OPPONENT DISCONNECTED");
         setTimeout(onClose, 3000);
@@ -280,166 +264,88 @@ const MultiplayerPong = ({ onClose }) => {
     if (!joinId) return;
     const cleanId = joinId.toUpperCase().startsWith('ARTIX-') ? joinId.toUpperCase() : `ARTIX-${joinId}`;
     setStatusMsg(`CONNECTING TO ${cleanId}...`);
-    
     const connection = peer.connect(cleanId);
     setConn(connection);
     setRole('client');
-    
     connection.on('open', () => {
         setMode('playing');
         setStatusMsg('CONNECTED');
         setupConnectionHandlers(connection, 'client');
     });
-
     connection.on('error', (err) => setStatusMsg("CONNECTION FAILED"));
   };
 
-  // --- GAME LOOP ---
   useEffect(() => {
     if (mode !== 'playing') return;
-    
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     let animationId;
-
     const PADDLE_HEIGHT = 80;
     const CANVAS_HEIGHT = 450;
     const CANVAS_WIDTH = 800;
 
-    // --- SMOOTH INPUT HANDLERS ---
     const handleKeyDown = (e) => {
         if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keysPressed.current.up = true;
         if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keysPressed.current.down = true;
     };
-    
     const handleKeyUp = (e) => {
         if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keysPressed.current.up = false;
         if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keysPressed.current.down = false;
     };
-
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
-    // --- MAIN LOOP ---
     const loop = () => {
-        // 1. Process Input (Every Frame)
         let moved = false;
-        if (keysPressed.current.up && myPaddle.current > 0) {
-            myPaddle.current -= PADDLE_SPEED;
-            moved = true;
-        }
-        if (keysPressed.current.down && myPaddle.current < CANVAS_HEIGHT - PADDLE_HEIGHT) {
-            myPaddle.current += PADDLE_SPEED;
-            moved = true;
-        }
-
-        // 2. Sync Input with Network
+        if (keysPressed.current.up && myPaddle.current > 0) { myPaddle.current -= PADDLE_SPEED; moved = true; }
+        if (keysPressed.current.down && myPaddle.current < CANVAS_HEIGHT - PADDLE_HEIGHT) { myPaddle.current += PADDLE_SPEED; moved = true; }
         if (moved) {
-            if (role === 'host') {
-                gameState.current.p1.y = myPaddle.current;
-            } else if (conn) {
-                // Throttle sending slightly or send every frame? 
-                // For local peerJS, sending every frame on change is usually fine for responsiveness.
-                conn.send({ type: 'INPUT', y: myPaddle.current });
-            }
+            if (role === 'host') { gameState.current.p1.y = myPaddle.current; } 
+            else if (conn) { conn.send({ type: 'INPUT', y: myPaddle.current }); }
         }
-
-        // 3. Process Physics (Host Only)
         if (role === 'host') updatePhysics();
-
-        // 4. Draw
         draw(ctx);
-
         animationId = requestAnimationFrame(loop);
     };
 
     const updatePhysics = () => {
         const state = gameState.current;
         const { ball } = state;
-
-        ball.x += ball.dx;
-        ball.y += ball.dy;
-
-        // Wall
+        ball.x += ball.dx; ball.y += ball.dy;
         if (ball.y + 6 > CANVAS_HEIGHT || ball.y - 6 < 0) ball.dy *= -1;
-
-        // Paddles
         const p1 = { x: 10, y: state.p1.y, w: 10, h: PADDLE_HEIGHT };
         const p2 = { x: CANVAS_WIDTH - 20, y: state.p2.y, w: 10, h: PADDLE_HEIGHT };
-
-        // Hit P1 (Left)
         if (ball.x - 6 < p1.x + p1.w && ball.y > p1.y && ball.y < p1.y + p1.h) {
             let newSpeed = Math.abs(ball.dx) + 0.5;
             if(newSpeed > MAX_SPEED) newSpeed = MAX_SPEED;
             ball.dx = newSpeed; 
         }
-        // Hit P2 (Right)
         if (ball.x + 6 > p2.x && ball.y > p2.y && ball.y < p2.y + p2.h) {
             let newSpeed = Math.abs(ball.dx) + 0.5;
             if(newSpeed > MAX_SPEED) newSpeed = MAX_SPEED;
             ball.dx = -newSpeed;
         }
-
-        // Score
         if (ball.x < 0) { state.score.p2++; resetBall(state); } 
         else if (ball.x > CANVAS_WIDTH) { state.score.p1++; resetBall(state); }
-
-        if (conn) {
-            conn.send({ type: 'UPDATE', state: state });
-            setScores({...state.score}); 
-        }
+        if (conn) { conn.send({ type: 'UPDATE', state: state }); setScores({...state.score}); }
     };
 
     const resetBall = (state) => {
-        state.ball = { 
-            x: 400, 
-            y: 225, 
-            dx: (Math.random() > 0.5 ? INITIAL_SPEED : -INITIAL_SPEED), 
-            dy: (Math.random() > 0.5 ? INITIAL_SPEED : -INITIAL_SPEED) 
-        };
+        state.ball = { x: 400, y: 225, dx: (Math.random() > 0.5 ? INITIAL_SPEED : -INITIAL_SPEED), dy: (Math.random() > 0.5 ? INITIAL_SPEED : -INITIAL_SPEED) };
     };
 
     const draw = (ctx) => {
-        // Clear
-        ctx.fillStyle = '#050505';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-        // Net
-        ctx.beginPath();
-        ctx.setLineDash([5, 15]);
-        ctx.moveTo(CANVAS_WIDTH / 2, 0);
-        ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
-        ctx.strokeStyle = '#10b98120';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Ball
+        ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.beginPath(); ctx.setLineDash([5, 15]); ctx.moveTo(CANVAS_WIDTH / 2, 0); ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
+        ctx.strokeStyle = '#10b98120'; ctx.lineWidth = 2; ctx.stroke();
         const { ball, p1, p2 } = gameState.current;
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = '#10b981';
-        ctx.fill();
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#10b981';
-
-        // Paddles
-        // Host (Left)
-        ctx.shadowBlur = role === 'host' ? 15 : 0; 
-        ctx.shadowColor = '#10b981';
-        ctx.fillStyle = role === 'host' ? '#10b981' : '#10b98150'; 
-        ctx.fillRect(10, role === 'host' ? myPaddle.current : p1.y, 10, PADDLE_HEIGHT);
-        
-        // Client (Right)
-        ctx.shadowBlur = role === 'client' ? 15 : 0;
-        ctx.shadowColor = '#10b981';
-        ctx.fillStyle = role === 'client' ? '#10b981' : '#10b98150';
-        ctx.fillRect(CANVAS_WIDTH - 20, role === 'client' ? myPaddle.current : p2.y, 10, PADDLE_HEIGHT);
+        ctx.beginPath(); ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2); ctx.fillStyle = '#10b981'; ctx.fill(); ctx.shadowBlur = 10; ctx.shadowColor = '#10b981';
+        ctx.shadowBlur = role === 'host' ? 15 : 0; ctx.shadowColor = '#10b981'; ctx.fillStyle = role === 'host' ? '#10b981' : '#10b98150'; ctx.fillRect(10, role === 'host' ? myPaddle.current : p1.y, 10, PADDLE_HEIGHT);
+        ctx.shadowBlur = role === 'client' ? 15 : 0; ctx.shadowColor = '#10b981'; ctx.fillStyle = role === 'client' ? '#10b981' : '#10b98150'; ctx.fillRect(CANVAS_WIDTH - 20, role === 'client' ? myPaddle.current : p2.y, 10, PADDLE_HEIGHT);
     };
 
-    // START
     loop();
-
     return () => {
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
@@ -447,81 +353,29 @@ const MultiplayerPong = ({ onClose }) => {
     };
   }, [mode, role, conn]);
 
-  // --- RENDER UI ---
   return (
     <div className="relative w-full max-w-4xl aspect-video bg-black border-4 border-emerald-900/50 rounded-xl shadow-2xl shadow-emerald-500/20 overflow-hidden flex flex-col items-center justify-center">
-        {/* CRT Effect */}
         <div className="absolute inset-0 pointer-events-none z-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,6px_100%]"></div>
         <button onClick={onClose} className="absolute top-4 right-4 z-50 p-2 text-emerald-500/50 hover:text-red-500 cursor-pointer"><X size={20} /></button>
-
         {mode === 'menu' && (
             <div className="flex flex-col items-center space-y-8 z-30 animate-in zoom-in-95 duration-300">
-                <div className="flex flex-col items-center">
-                    <Wifi size={48} className="text-emerald-500 mb-4 animate-pulse" />
-                    <h2 className="text-3xl font-bold text-white tracking-[0.2em] font-mono">MULTIPLAYER PROTOCOL</h2>
-                    <p className="text-emerald-500/50 text-xs font-mono mt-2">SECURE P2P CONNECTION ESTABLISHED</p>
-                </div>
+                <div className="flex flex-col items-center"><Wifi size={48} className="text-emerald-500 mb-4 animate-pulse" /><h2 className="text-3xl font-bold text-white tracking-[0.2em] font-mono">MULTIPLAYER PROTOCOL</h2><p className="text-emerald-500/50 text-xs font-mono mt-2">SECURE P2P CONNECTION ESTABLISHED</p></div>
                 <div className="flex gap-6">
-                    <button onClick={() => setMode('hosting')} className="group flex flex-col items-center p-6 border border-emerald-500/30 rounded-xl hover:bg-emerald-900/20 transition-all w-48 cursor-pointer">
-                        <Radio size={32} className="text-emerald-400 mb-3 group-hover:scale-110 transition-transform" />
-                        <span className="text-emerald-300 font-bold tracking-widest">HOST</span>
-                        <span className="text-emerald-500/40 text-[10px] mt-1">CREATE FREQUENCY</span>
-                    </button>
-                    <button onClick={() => setMode('joining')} className="group flex flex-col items-center p-6 border border-emerald-500/30 rounded-xl hover:bg-emerald-900/20 transition-all w-48 cursor-pointer">
-                        <Gamepad2 size={32} className="text-emerald-400 mb-3 group-hover:scale-110 transition-transform" />
-                        <span className="text-emerald-300 font-bold tracking-widest">JOIN</span>
-                        <span className="text-emerald-500/40 text-[10px] mt-1">CONNECT TO FREQUENCY</span>
-                    </button>
+                    <button onClick={() => setMode('hosting')} className="group flex flex-col items-center p-6 border border-emerald-500/30 rounded-xl hover:bg-emerald-900/20 transition-all w-48 cursor-pointer"><Radio size={32} className="text-emerald-400 mb-3 group-hover:scale-110 transition-transform" /><span className="text-emerald-300 font-bold tracking-widest">HOST</span><span className="text-emerald-500/40 text-[10px] mt-1">CREATE FREQUENCY</span></button>
+                    <button onClick={() => setMode('joining')} className="group flex flex-col items-center p-6 border border-emerald-500/30 rounded-xl hover:bg-emerald-900/20 transition-all w-48 cursor-pointer"><Gamepad2 size={32} className="text-emerald-400 mb-3 group-hover:scale-110 transition-transform" /><span className="text-emerald-300 font-bold tracking-widest">JOIN</span><span className="text-emerald-500/40 text-[10px] mt-1">CONNECT TO FREQUENCY</span></button>
                 </div>
             </div>
         )}
-
         {mode === 'hosting' && (
-             <div className="flex flex-col items-center space-y-6 z-30 animate-in fade-in duration-300">
-                <Loader2 size={48} className="text-emerald-500 animate-spin" />
-                <div className="text-center">
-                    <p className="text-emerald-500/50 text-xs font-mono mb-2">WAITING FOR PLAYER 2...</p>
-                    <div className="bg-emerald-900/20 border border-emerald-500/50 p-4 rounded-lg">
-                        <span className="text-4xl font-mono font-bold text-white tracking-widest select-all">{myId.replace('ARTIX-', '')}</span>
-                    </div>
-                    <p className="text-zinc-500 text-[10px] mt-4 max-w-xs">Share this frequency code with your opponent. The game will start automatically when they join.</p>
-                </div>
-                <button onClick={() => setMode('menu')} className="text-xs text-red-500 hover:underline cursor-pointer">CANCEL</button>
-             </div>
+             <div className="flex flex-col items-center space-y-6 z-30 animate-in fade-in duration-300"><Loader2 size={48} className="text-emerald-500 animate-spin" /><div className="text-center"><p className="text-emerald-500/50 text-xs font-mono mb-2">WAITING FOR PLAYER 2...</p><div className="bg-emerald-900/20 border border-emerald-500/50 p-4 rounded-lg"><span className="text-4xl font-mono font-bold text-white tracking-widest select-all">{myId.replace('ARTIX-', '')}</span></div><p className="text-zinc-500 text-[10px] mt-4 max-w-xs">Share this frequency code with your opponent.</p></div><button onClick={() => setMode('menu')} className="text-xs text-red-500 hover:underline cursor-pointer">CANCEL</button></div>
         )}
-
         {mode === 'joining' && (
-             <div className="flex flex-col items-center space-y-6 z-30 animate-in fade-in duration-300">
-                <div className="text-center">
-                    <p className="text-emerald-500/50 text-xs font-mono mb-4">ENTER HOST FREQUENCY CODE</p>
-                    <div className="flex items-center gap-2">
-                        <span className="text-emerald-500/50 font-mono text-xl">ARTIX-</span>
-                        <input 
-                            value={joinId}
-                            onChange={(e) => setJoinId(e.target.value)}
-                            placeholder="XXXX"
-                            maxLength={4}
-                            className="bg-transparent border-b-2 border-emerald-500 text-3xl font-mono text-white w-24 text-center focus:outline-none uppercase tracking-widest placeholder-zinc-700"
-                        />
-                    </div>
-                </div>
-                <button onClick={handleJoin} disabled={joinId.length < 4} className="px-8 py-2 bg-emerald-600 text-white rounded font-bold tracking-widest hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer">CONNECT</button>
-                <button onClick={() => setMode('menu')} className="text-xs text-zinc-500 hover:text-white cursor-pointer">BACK</button>
-                {statusMsg && <p className="text-red-400 text-xs font-mono">{statusMsg}</p>}
-             </div>
+             <div className="flex flex-col items-center space-y-6 z-30 animate-in fade-in duration-300"><div className="text-center"><p className="text-emerald-500/50 text-xs font-mono mb-4">ENTER HOST FREQUENCY CODE</p><div className="flex items-center gap-2"><span className="text-emerald-500/50 font-mono text-xl">ARTIX-</span><input value={joinId} onChange={(e) => setJoinId(e.target.value)} placeholder="XXXX" maxLength={4} className="bg-transparent border-b-2 border-emerald-500 text-3xl font-mono text-white w-24 text-center focus:outline-none uppercase tracking-widest placeholder-zinc-700" /></div></div><button onClick={handleJoin} disabled={joinId.length < 4} className="px-8 py-2 bg-emerald-600 text-white rounded font-bold tracking-widest hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer">CONNECT</button><button onClick={() => setMode('menu')} className="text-xs text-zinc-500 hover:text-white cursor-pointer">BACK</button>{statusMsg && <p className="text-red-400 text-xs font-mono">{statusMsg}</p>}</div>
         )}
-
         {mode === 'playing' && (
             <>
-                <div className="absolute top-6 left-0 right-0 flex justify-between px-20 z-10 font-mono text-5xl font-bold text-emerald-500/20 select-none pointer-events-none">
-                    <span>{scores.p1}</span>
-                    <span>{scores.p2}</span>
-                </div>
-                <div className="absolute bottom-4 left-0 right-0 text-center z-10 pointer-events-none">
-                     <span className="text-[10px] text-emerald-500/40 font-mono uppercase tracking-[0.3em]">
-                        {role === 'host' ? 'YOU ARE HOST (LEFT)' : 'YOU ARE CLIENT (RIGHT)'} • USE ARROW KEYS TO MOVE
-                     </span>
-                </div>
+                <div className="absolute top-6 left-0 right-0 flex justify-between px-20 z-10 font-mono text-5xl font-bold text-emerald-500/20 select-none pointer-events-none"><span>{scores.p1}</span><span>{scores.p2}</span></div>
+                <div className="absolute bottom-4 left-0 right-0 text-center z-10 pointer-events-none"><span className="text-[10px] text-emerald-500/40 font-mono uppercase tracking-[0.3em]">{role === 'host' ? 'YOU ARE HOST (LEFT)' : 'YOU ARE CLIENT (RIGHT)'} • USE ARROW KEYS TO MOVE</span></div>
                 <canvas ref={canvasRef} width={800} height={450} className="w-full h-full block" />
             </>
         )}
@@ -553,6 +407,7 @@ export default function ArtixClone() {
   const [parisActive, setParisActive] = useState(false);
   const [artixActive, setArtixActive] = useState(false);
   const [muahActive, setMuahActive] = useState(false);
+  const [cr7Active, setCr7Active] = useState(false); // CR7 STATE
   
   // --- MULTIPLAYER PONG STATE ---
   const [pongActive, setPongActive] = useState(false);
@@ -578,7 +433,7 @@ export default function ArtixClone() {
   
   // --- TRIGGERS ---
   const handleHafsaTrigger = () => {
-    if (glitchActive || gravityActive || parisActive || artixActive || muahActive || pongActive) return; 
+    if (glitchActive || gravityActive || parisActive || artixActive || muahActive || pongActive || cr7Active) return; 
     setGlitchActive(true);
     setInput('Hafsa...'); 
     flickerRef.current = setInterval(() => { document.documentElement.classList.toggle('glitch-flicker'); }, 50); 
@@ -587,7 +442,7 @@ export default function ArtixClone() {
   };
 
   const triggerGravityEffect = () => {
-    if (gravityActive || glitchActive || parisActive || artixActive || muahActive || pongActive) return;
+    if (gravityActive || glitchActive || parisActive || artixActive || muahActive || pongActive || cr7Active) return;
     setGravityActive(true);
     setInput(''); 
     const targetDate = new Date(2025, 4, 11); 
@@ -607,16 +462,21 @@ export default function ArtixClone() {
     // TRIGGER CHECKER
     if (lowerVal.includes('hafsa') && !glitchActive) handleHafsaTrigger();
     else if (value.includes('11/05/2025') && !gravityActive) triggerGravityEffect();
-    else if (lowerVal.includes('paris') && !parisActive && !glitchActive && !gravityActive && !artixActive && !muahActive && !pongActive) {
+    else if (lowerVal.includes('paris') && !parisActive && !glitchActive && !gravityActive && !artixActive && !muahActive && !pongActive && !cr7Active) {
         setParisActive(true);
         setTimeout(() => { setParisActive(false); setInput(''); }, 5000); 
     }
-    else if (lowerVal.includes('artix') && !artixActive && !parisActive && !glitchActive && !gravityActive && !muahActive && !pongActive) {
+    else if (lowerVal.includes('artix') && !artixActive && !parisActive && !glitchActive && !gravityActive && !muahActive && !pongActive && !cr7Active) {
         setArtixActive(true);
         setInput('');
     }
-    else if (lowerVal.includes('muah') && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive) {
+    else if (lowerVal.includes('muah') && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive && !cr7Active) {
         setMuahActive(true);
+        setInput('');
+    }
+    // CR7 TRIGGER
+    else if (lowerVal.includes('cr7') && !cr7Active && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive) {
+        setCr7Active(true);
         setInput('');
     }
   };
@@ -682,6 +542,7 @@ export default function ArtixClone() {
     if (lowerInput.includes('paris') && !parisActive) { setParisActive(true); setTimeout(() => { setParisActive(false); setInput(''); }, 5000); return; }
     if (lowerInput.includes('artix') && !artixActive) { setArtixActive(true); setInput(''); return; }
     if (lowerInput.includes('muah') && !muahActive) { setMuahActive(true); setInput(''); return; }
+    if (lowerInput.includes('cr7') && !cr7Active) { setCr7Active(true); setInput(''); return; }
 
     const currentInput = input;
     const currentAttachment = attachment;
@@ -710,6 +571,15 @@ export default function ArtixClone() {
         <div className="fixed inset-0 z-[5000] bg-black flex items-center justify-center animate-in fade-in duration-500">
             <video src="/artix_video.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
             <button onClick={() => setArtixActive(false)} className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"><X size={24} /></button>
+        </div>
+      )}
+
+      {/* CR7 VIDEO (FIXED DIMENSIONS) */}
+      {cr7Active && (
+        <div className="fixed inset-0 z-[5000] bg-black flex items-center justify-center animate-in fade-in duration-500">
+            <video src="/hafsacr7.mp4" autoPlay loop playsInline className="w-full h-full object-contain" />
+            <button onClick={() => setCr7Active(false)} className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"><X size={24} /></button>
+             <div className="absolute bottom-10 left-10 z-40 pointer-events-none"><h1 className="text-4xl font-black text-white/20 tracking-[0.3em] select-none">HAHAHAHAHAHAHAAHAHAHAHAHAHAAHHAHAHAHAHAHAHAHAHAH</h1></div>
         </div>
       )}
 
@@ -758,7 +628,7 @@ export default function ArtixClone() {
       )}
 
       {/* --- APP LAYOUT --- */}
-      <div className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive ? 'hidden' : 'relative'}`} style={glitchActive ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } : {}}>
+      <div className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive || cr7Active ? 'hidden' : 'relative'}`} style={glitchActive ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } : {}}>
         
         {/* SIDEBAR */}
         <div ref={sidebarRef} className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
