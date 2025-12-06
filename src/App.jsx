@@ -10,36 +10,34 @@ import {
   Settings, Maximize2, Minimize2, Plus, FileText, X, Save, Copy, 
   Layout, Clock, Trash2, ChevronRight, Image as ImageIcon, 
   Paperclip, Loader2, Download, Menu, Box, RotateCw, CheckCircle2, AlertCircle,
-  Play, Eye, EyeOff, Heart, Sparkles, Camera, Film
+  Play, Eye, EyeOff, Heart, Sparkles, Camera, Film, Gamepad2, Trophy
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v7.5: The Multimedia Update
+ * ARTIX-AI v7.6: The Pong Update
  * * FEATURES:
  * - Gravity Easter Egg (11/05/2025)
  * - Hafsa Glitch (Hafsa)
  * - Eiffel Tower Animation (Paris)
  * - Artix Video Loop (Artix)
  * - Photo & Video Album Gallery (Muah)
+ * - Multiplayer Pong (Ping Pong)
  */
 
 // --- CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "7.5.0";
+const VERSION = "7.6.0";
 
 // --- YOUR MEDIA CONFIGURATION ---
-// Add your files here. Use 'image' or 'video' for the type.
-// Place files in the 'public' folder.
 const ALBUM_MEDIA = [
   { type: 'image', src: '/photo1.jpeg' },
   { type: 'image', src: '/photo2.jpeg' },
-  { type: 'video', src: '/video1.MP4' }, // Example Video
+  { type: 'video', src: '/video1.MP4' }, 
   { type: 'image', src: '/photo3.jpeg' },
-  { type: 'video', src: '/video2.mp4' }, // Example Video
+  { type: 'video', src: '/video2.mp4' }, 
   { type: 'image', src: '/photo4.JPEG' },
   { type: 'video', src: '/video3.mp4' },
   { type: 'video', src: '/video4.mp4' },
-  // Add as many as you want...
 ];
 
 // --- PROTOCOLS ---
@@ -339,6 +337,178 @@ const EiffelTowerAnimation = () => {
     );
 };
 
+// --- PONG GAME COMPONENT ---
+const PongGame = ({ onClose }) => {
+  const canvasRef = useRef(null);
+  const [scores, setScores] = useState({ p1: 0, p2: 0 });
+  const [gameStarted, setGameStarted] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+
+    // Game Objects
+    const ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 6, speed: 5, dx: 5, dy: 5, color: '#10b981' };
+    const paddleWidth = 10, paddleHeight = 80;
+    const p1 = { x: 10, y: canvas.height / 2 - paddleHeight / 2, width: paddleWidth, height: paddleHeight, score: 0, dy: 0, speed: 8 };
+    const p2 = { x: canvas.width - 20, y: canvas.height / 2 - paddleHeight / 2, width: paddleWidth, height: paddleHeight, score: 0, dy: 0, speed: 8 };
+
+    // Keys
+    const keys = { w: false, s: false, ArrowUp: false, ArrowDown: false };
+
+    const handleKeyDown = (e) => {
+        if(e.key === 'w' || e.key === 'W') keys.w = true;
+        if(e.key === 's' || e.key === 'S') keys.s = true;
+        if(e.key === 'ArrowUp') keys.ArrowUp = true;
+        if(e.key === 'ArrowDown') keys.ArrowDown = true;
+    };
+    const handleKeyUp = (e) => {
+        if(e.key === 'w' || e.key === 'W') keys.w = false;
+        if(e.key === 's' || e.key === 'S') keys.s = false;
+        if(e.key === 'ArrowUp') keys.ArrowUp = false;
+        if(e.key === 'ArrowDown') keys.ArrowDown = false;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    const resetBall = () => {
+        ball.x = canvas.width / 2;
+        ball.y = canvas.height / 2;
+        ball.speed = 5;
+        ball.dx = -ball.dx;
+    };
+
+    const update = () => {
+        // Paddle Movement
+        if (keys.w && p1.y > 0) p1.y -= p1.speed;
+        if (keys.s && p1.y < canvas.height - p1.height) p1.y += p1.speed;
+        if (keys.ArrowUp && p2.y > 0) p2.y -= p2.speed;
+        if (keys.ArrowDown && p2.y < canvas.height - p2.height) p2.y += p2.speed;
+
+        // Ball Movement
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        // Wall Collision (Top/Bottom)
+        if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) ball.dy *= -1;
+
+        // Paddle Collision
+        let player = (ball.x < canvas.width / 2) ? p1 : p2;
+        if (
+            ball.x - ball.radius < player.x + player.width &&
+            ball.x + ball.radius > player.x &&
+            ball.y + ball.radius > player.y &&
+            ball.y - ball.radius < player.y + player.height
+        ) {
+            // Hit logic
+            let collidePoint = ball.y - (player.y + player.height / 2);
+            collidePoint = collidePoint / (player.height / 2);
+            let angleRad = (Math.PI / 4) * collidePoint;
+            let direction = (ball.x < canvas.width / 2) ? 1 : -1;
+            
+            ball.dx = direction * ball.speed * Math.cos(angleRad);
+            ball.dy = ball.speed * Math.sin(angleRad);
+            ball.speed += 0.2; // Increase speed
+        }
+
+        // Scoring
+        if (ball.x - ball.radius < 0) {
+            p2.score++;
+            setScores({p1: p1.score, p2: p2.score});
+            resetBall();
+        } else if (ball.x + ball.radius > canvas.width) {
+            p1.score++;
+            setScores({p1: p1.score, p2: p2.score});
+            resetBall();
+        }
+    };
+
+    const draw = () => {
+        // Clear
+        ctx.fillStyle = '#050505';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Net
+        ctx.beginPath();
+        ctx.setLineDash([5, 15]);
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#10b98133'; // Low opacity emerald
+        ctx.stroke();
+
+        // Ball
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fillStyle = ball.color;
+        ctx.fill();
+        ctx.closePath();
+        // Glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = ball.color;
+
+        // Paddles
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(p1.x, p1.y, p1.width, p1.height);
+        ctx.fillRect(p2.x, p2.y, p2.width, p2.height);
+        ctx.shadowBlur = 0; // Reset glow for other elements
+    };
+
+    const gameLoop = () => {
+        update();
+        draw();
+        animationFrameId = requestAnimationFrame(gameLoop);
+    };
+
+    // Initial Draw before loop
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Start loop
+    gameLoop();
+
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+        cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return (
+    <div className="relative w-full max-w-4xl aspect-video bg-black border-4 border-emerald-900/50 rounded-xl shadow-2xl shadow-emerald-500/20 overflow-hidden">
+        {/* CRT Scanline Effect */}
+        <div className="absolute inset-0 pointer-events-none z-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,6px_100%]"></div>
+        
+        {/* Score Board */}
+        <div className="absolute top-4 left-0 right-0 flex justify-between px-12 z-10 font-mono text-4xl font-bold text-emerald-500/50 select-none">
+            <span>{scores.p1}</span>
+            <span>{scores.p2}</span>
+        </div>
+
+        {/* Controls Hint */}
+        <div className="absolute bottom-4 left-0 right-0 flex justify-between px-8 z-10 text-[10px] text-emerald-500/30 font-mono uppercase tracking-widest select-none">
+            <span>P1: W / S</span>
+            <span>P2: UP / DOWN</span>
+        </div>
+
+        <canvas 
+            ref={canvasRef} 
+            width={800} 
+            height={450} 
+            className="w-full h-full block"
+        />
+
+        <button onClick={onClose} className="absolute top-4 right-4 z-30 p-2 bg-emerald-900/20 hover:bg-red-900/40 text-emerald-500 hover:text-red-400 rounded-full transition-colors cursor-pointer border border-emerald-500/20">
+            <X size={20} />
+        </button>
+    </div>
+  );
+};
+
+
 // --- MAIN APPLICATION ---
 
 export default function ArtixClone() {
@@ -362,6 +532,10 @@ export default function ArtixClone() {
   const [parisActive, setParisActive] = useState(false);
   const [artixActive, setArtixActive] = useState(false);
   const [muahActive, setMuahActive] = useState(false);
+  
+  // --- PONG STATES ---
+  const [pongActive, setPongActive] = useState(false);
+  const [pongStatus, setPongStatus] = useState('idle'); // idle, waiting, playing
 
   const flickerRef = useRef(null);
   const glitchTimeoutRef = useRef(null);
@@ -384,7 +558,7 @@ export default function ArtixClone() {
   
   // --- TRIGGERS ---
   const handleHafsaTrigger = () => {
-    if (glitchActive || gravityActive || parisActive || artixActive || muahActive) return; 
+    if (glitchActive || gravityActive || parisActive || artixActive || muahActive || pongActive) return; 
     setGlitchActive(true);
     setInput('Hafsa...'); 
     flickerRef.current = setInterval(() => { document.documentElement.classList.toggle('glitch-flicker'); }, 50); 
@@ -393,7 +567,7 @@ export default function ArtixClone() {
   };
 
   const triggerGravityEffect = () => {
-    if (gravityActive || glitchActive || parisActive || artixActive || muahActive) return;
+    if (gravityActive || glitchActive || parisActive || artixActive || muahActive || pongActive) return;
     setGravityActive(true);
     setInput(''); 
     const targetDate = new Date(2025, 4, 11); 
@@ -413,15 +587,15 @@ export default function ArtixClone() {
     // TRIGGER CHECKER
     if (lowerVal.includes('hafsa') && !glitchActive) handleHafsaTrigger();
     else if (value.includes('11/05/2025') && !gravityActive) triggerGravityEffect();
-    else if (lowerVal.includes('paris') && !parisActive && !glitchActive && !gravityActive && !artixActive && !muahActive) {
+    else if (lowerVal.includes('paris') && !parisActive && !glitchActive && !gravityActive && !artixActive && !muahActive && !pongActive) {
         setParisActive(true);
         setTimeout(() => { setParisActive(false); setInput(''); }, 5000); 
     }
-    else if (lowerVal.includes('artix') && !artixActive && !parisActive && !glitchActive && !gravityActive && !muahActive) {
+    else if (lowerVal.includes('artix') && !artixActive && !parisActive && !glitchActive && !gravityActive && !muahActive && !pongActive) {
         setArtixActive(true);
         setInput('');
     }
-    else if (lowerVal.includes('muah') && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive) {
+    else if (lowerVal.includes('muah') && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive) {
         setMuahActive(true);
         setInput('');
     }
@@ -469,10 +643,26 @@ export default function ArtixClone() {
   };
 
   const handleSend = async () => {
+    const lowerInput = input.toLowerCase();
+
+    // --- PONG TRIGGER LOGIC ---
+    if (lowerInput.includes('ping pong') || (pongStatus === 'waiting' && lowerInput.includes('join'))) {
+        if (!pongActive) {
+            // First trigger: Open Lobby
+            setPongActive(true);
+            setPongStatus('waiting');
+            setInput('');
+        } else if (pongStatus === 'waiting') {
+            // Second trigger: Start Game
+            setPongStatus('playing');
+            setInput('');
+        }
+        return; // Stop normal chat sending
+    }
+
     if ((!input.trim() && !attachment) || loading) return;
     
-    // Check triggers before sending
-    const lowerInput = input.toLowerCase();
+    // Check other triggers
     if (lowerInput.includes('hafsa') && !glitchActive) { handleHafsaTrigger(); return; }
     if (input.includes('11/05/2025') && !gravityActive) { triggerGravityEffect(); return; }
     if (lowerInput.includes('paris') && !parisActive) { setParisActive(true); setTimeout(() => { setParisActive(false); setInput(''); }, 5000); return; }
@@ -512,7 +702,7 @@ export default function ArtixClone() {
         </div>
       )}
 
-      {/* 3. MUAH ALBUM OVERLAY (UPDATED FOR VIDEO) */}
+      {/* 3. MUAH ALBUM OVERLAY */}
       {muahActive && (
         <div className="fixed inset-0 z-[6000] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in zoom-in-95 duration-500 overflow-hidden">
              {/* Header */}
@@ -529,48 +719,19 @@ export default function ArtixClone() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
                     {ALBUM_MEDIA.map((item, index) => (
                         <div key={index} className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl hover:scale-[1.02] transition-transform duration-500">
-                             
-                             {/* MEDIA RENDER LOGIC */}
                              {item.type === 'video' ? (
                                 <>
-                                    <video 
-                                        src={item.src} 
-                                        autoPlay 
-                                        loop 
-                                        muted 
-                                        playsInline 
-                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500"
-                                    />
-                                    {/* Video Indicator */}
-                                    <div className="absolute top-3 right-3 p-1.5 bg-black/60 rounded-full backdrop-blur-sm z-20">
-                                        <Film size={14} className="text-white/80" />
-                                    </div>
+                                    <video src={item.src} autoPlay loop muted playsInline className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500" />
+                                    <div className="absolute top-3 right-3 p-1.5 bg-black/60 rounded-full backdrop-blur-sm z-20"><Film size={14} className="text-white/80" /></div>
                                 </>
                              ) : (
-                                <img 
-                                    src={item.src} 
-                                    alt={`Memory ${index + 1}`} 
-                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500"
-                                    onError={(e) => {
-                                        e.target.onerror = null; 
-                                        e.target.src = `https://placehold.co/600x800/18181b/10b981?text=Photo+${index+1}`; 
-                                    }}
-                                />
+                                <img src={item.src} alt={`Memory ${index + 1}`} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500" onError={(e) => { e.target.onerror = null; e.target.src = `https://placehold.co/600x800/18181b/10b981?text=Photo+${index+1}`; }} />
                              )}
-
-                             {/* Caption Overlay */}
                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-10">
-                                <span className="text-emerald-400 font-mono text-xs">
-                                    {item.type === 'video' ? `VID_00${index + 1}` : `IMG_00${index + 1}`}
-                                </span>
+                                <span className="text-emerald-400 font-mono text-xs">{item.type === 'video' ? `VID_00${index + 1}` : `IMG_00${index + 1}`}</span>
                              </div>
                         </div>
                     ))}
-                    {/* Add More Button (Mock) */}
-                    <div className="aspect-[3/4] rounded-2xl bg-white/5 border border-dashed border-white/10 flex flex-col items-center justify-center text-zinc-600 hover:bg-white/10 hover:text-zinc-400 transition-colors cursor-pointer group">
-                        <Camera size={32} className="mb-2 group-hover:scale-110 transition-transform" />
-                        <span className="text-xs tracking-widest uppercase">Add Memory</span>
-                    </div>
                 </div>
              </div>
         </div>
@@ -585,7 +746,7 @@ export default function ArtixClone() {
         </div>
       )}
 
-      {/* 5. GRAVITY / DATE LOVE OVERLAY */}
+      {/* 5. GRAVITY OVERLAY */}
       {daysCounter !== null && (
         <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black transition-opacity duration-1000">
             <div className="animate-pulse mb-8"><Heart size={100} className="text-red-500 fill-red-500 shadow-red-500 drop-shadow-[0_0_35px_rgba(220,38,38,0.8)]" /></div>
@@ -594,6 +755,35 @@ export default function ArtixClone() {
             <h2 className="text-2xl sm:text-3xl font-light text-zinc-400 mt-4 tracking-[0.5em] uppercase">DAYS</h2>
             <p className="mt-12 text-zinc-600 text-sm font-mono opacity-50">Since 11/05/2025</p>
         </div>
+      )}
+
+      {/* 6. PONG GAME OVERLAY (MULTIPLAYER WAITING & GAME) */}
+      {pongActive && (
+          <div className="fixed inset-0 z-[9000] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-300">
+              
+              {/* WAITING STATE */}
+              {pongStatus === 'waiting' && (
+                  <div className="flex flex-col items-center text-center space-y-6 animate-pulse">
+                      <Gamepad2 size={80} className="text-emerald-500" />
+                      <h1 className="text-4xl font-bold text-white tracking-[0.2em]">PONG MULTIPLAYER</h1>
+                      <div className="p-6 border border-emerald-500/30 bg-emerald-900/10 rounded-xl max-w-md">
+                          <p className="text-emerald-400 font-mono text-lg mb-2">WAITING FOR PLAYER 2...</p>
+                          <p className="text-zinc-500 text-xs uppercase tracking-widest">Type "Ping Pong" or "Join" to connect</p>
+                      </div>
+                      <div className="flex space-x-2 mt-4">
+                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+                      </div>
+                      <button onClick={() => {setPongActive(false); setPongStatus('idle')}} className="mt-8 text-xs text-red-500 hover:text-red-400 uppercase tracking-widest hover:underline cursor-pointer">Cancel Request</button>
+                  </div>
+              )}
+
+              {/* PLAYING STATE */}
+              {pongStatus === 'playing' && (
+                  <PongGame onClose={() => {setPongActive(false); setPongStatus('idle')}} />
+              )}
+          </div>
       )}
 
       {/* --- APP CONTENT WRAPPER --- */}
@@ -653,7 +843,7 @@ export default function ArtixClone() {
               <div className="relative flex items-end bg-[#0c0c0c]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:border-emerald-500/50 transition-colors">
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
                 <textarea value={input} onChange={handleInputChange} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder="Enter directive..." className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" rows={1} disabled={glitchActive || gravityActive} />
-                <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment) || glitchActive || gravityActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
+                <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment && !pongActive && pongStatus !== 'waiting') || glitchActive || gravityActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
               </div>
             </div>
           </div>
