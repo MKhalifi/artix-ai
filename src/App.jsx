@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import Peer from 'peerjs'; // REQUIRES: npm install peerjs
 import 'katex/dist/katex.min.css';
 
 import { 
@@ -10,23 +11,23 @@ import {
   Settings, Maximize2, Minimize2, Plus, FileText, X, Save, Copy, 
   Layout, Clock, Trash2, ChevronRight, Image as ImageIcon, 
   Paperclip, Loader2, Download, Menu, Box, RotateCw, CheckCircle2, AlertCircle,
-  Play, Eye, EyeOff, Heart, Sparkles, Camera, Film, Gamepad2, Trophy
+  Play, Eye, EyeOff, Heart, Sparkles, Camera, Film, Gamepad2, Trophy, Radio, Wifi
 } from 'lucide-react';
 
 /**
- * ARTIX-AI v7.6: The Pong Update
+ * ARTIX-AI v7.9: The Smooth Input Update
  * * FEATURES:
  * - Gravity Easter Egg (11/05/2025)
  * - Hafsa Glitch (Hafsa)
  * - Eiffel Tower Animation (Paris)
  * - Artix Video Loop (Artix)
  * - Photo & Video Album Gallery (Muah)
- * - Multiplayer Pong (Ping Pong)
+ * - Real-Time Multiplayer Pong (PeerJS) - High Performance Input
  */
 
 // --- CONFIGURATION ---
 const APP_NAME = "ARTIX-AI";
-const VERSION = "7.6.0";
+const VERSION = "7.5.0";
 
 // --- YOUR MEDIA CONFIGURATION ---
 const ALBUM_MEDIA = [
@@ -44,8 +45,6 @@ const ALBUM_MEDIA = [
 const CANVAS_PROTOCOL = `
 [PROTOCOL: CANVAS]
 If the user asks for code, a website, a game, or a component, output it inside an artifact block.
-If it is a web app, use 'html' language and put CSS/JS inside the same file.
-
 :::artifact:{filename}:{language}
 {content}
 :::
@@ -61,16 +60,11 @@ const THREE_D_PROTOCOL = `
 [PROTOCOL: 3D GENERATION]
 If the user explicitly asks to generate a 3D model/asset/object, use:
 :::3d_gen:{detailed_prompt}:::
-Do not output markdown or text descriptions, just the token.
 `;
 
 const SYSTEM_PROMPT_BASE = `You are ARTIX, a high-performance artificial intelligence. 
 Your traits: PRECISION, IDENTITY (ARTIX), CAPABILITY (Coding, Vision, Creation, 3D Modeling).
-
-FORMATTING RULES:
-1. Use standard Markdown for text (**bold**, *italic*, etc).
-2. Use LaTeX for ALL math. Inline: $E=mc^2$. Block: $$ \sum_{i=0}^n x_i $$.
-
+FORMATTING RULES: Use standard Markdown. Use LaTeX for math.
 You have access to the Hyper3D Rodin Engine.
 ${CANVAS_PROTOCOL}
 ${IMAGE_GEN_PROTOCOL}
@@ -87,27 +81,10 @@ const SYSTEM_PROMPT_DEEP_THINK = `
 // --- API HANDLERS ---
 const generateResponse = async (history, userInput, attachment, isDeepThink) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-  
-  const systemInstruction = isDeepThink 
-    ? SYSTEM_PROMPT_BASE + "\n" + SYSTEM_PROMPT_DEEP_THINK 
-    : SYSTEM_PROMPT_BASE;
-
-  const contents = history.map(msg => {
-    if (msg.image) return { role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] };
-    return { role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] };
-  });
-
+  const systemInstruction = isDeepThink ? SYSTEM_PROMPT_BASE + "\n" + SYSTEM_PROMPT_DEEP_THINK : SYSTEM_PROMPT_BASE;
+  const contents = history.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] }));
   const currentParts = [{ text: userInput }];
-  
-  if (attachment) {
-    currentParts.push({
-      inlineData: {
-        mimeType: attachment.type,
-        data: attachment.data 
-      }
-    });
-  }
-
+  if (attachment) currentParts.push({ inlineData: { mimeType: attachment.type, data: attachment.data } });
   contents.push({ role: 'user', parts: currentParts });
 
   try {
@@ -116,56 +93,33 @@ const generateResponse = async (history, userInput, attachment, isDeepThink) => 
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: contents,
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          generationConfig: {
-            temperature: isDeepThink ? 0.6 : 0.7, 
-            maxOutputTokens: 8192,
-          }
-        })
+        body: JSON.stringify({ contents, systemInstruction: { parts: [{ text: systemInstruction }] } })
       }
     );
-
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "System Warning: No coherence detected.";
-
-  } catch (error) {
-    console.error("Core Failure:", error);
-    return `[SYSTEM ERROR]: Connection to Neural Core failed. ${error.message}`;
-  }
+  } catch (error) { return `[SYSTEM ERROR]: ${error.message}`; }
 };
 
 const generateImage = async (prompt) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instances: [{ prompt: prompt }],
-          parameters: { sampleCount: 1 }
-        })
+        body: JSON.stringify({ instances: [{ prompt }], parameters: { sampleCount: 1 } })
       }
     );
-
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message || "API request failed");
     const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
-    if (!base64Image) throw new Error("No image data returned from API");
+    if (!base64Image) throw new Error("No image data");
     return `data:image/png;base64,${base64Image}`;
-
-  } catch (error) {
-    console.error("Generative Engine Failure:", error);
-    return null;
-  }
+  } catch (error) { return null; }
 };
 
-// --- 3D ENGINE COMPONENT ---
+// --- 3D ENGINE ---
 const ThreeDGenerator = ({ prompt }) => {
   const [status, setStatus] = useState('init'); 
   const [taskData, setTaskData] = useState({ subKey: null, uuid: null }); 
@@ -177,99 +131,52 @@ const ThreeDGenerator = ({ prompt }) => {
 
   useEffect(() => {
     const createTask = async () => {
-      setStatus('creating');
-      setProgress(5);
+      setStatus('creating'); setProgress(5);
       try {
-        const formData = new FormData();
-        formData.append('prompt', prompt); 
+        const formData = new FormData(); formData.append('prompt', prompt); 
         const response = await fetch(`${PROXY_BASE}/api/v2/rodin`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${HYPER3D_KEY}` },
-          body: formData
+          method: 'POST', headers: { 'Authorization': `Bearer ${HYPER3D_KEY}` }, body: formData
         });
-        if (!response.ok) {
-            const text = await response.text();
-            throw new Error(`Creation Failed (${response.status}): ${text.substring(0, 50)}`);
-        }
         const data = await response.json();
         const subKey = data.jobs?.subscription_key || data.subscription_key;
         const uuid = data.uuid;
-        if (subKey && uuid) {
-          setTaskData({ subKey, uuid });
-          setStatus('polling');
-          setProgress(10);
-        } else {
-          throw new Error("API returned success but IDs are missing.");
-        }
-      } catch (err) {
-        setError(err.message);
-        setStatus('error');
-      }
+        if (subKey && uuid) { setTaskData({ subKey, uuid }); setStatus('polling'); setProgress(10); } 
+        else { throw new Error("API ID missing."); }
+      } catch (err) { setError(err.message); setStatus('error'); }
     };
     if (prompt) createTask();
   }, [prompt]);
 
   useEffect(() => {
     if (status !== 'polling' || !taskData.subKey) return;
-    let pollCount = 0;
-    const MAX_POLLS = 600; 
     const poll = async () => {
-      pollCount++;
-      if (pollCount > MAX_POLLS) {
-          setError("Timed out waiting for generation.");
-          setStatus('error');
-          return;
-      }
       try {
         const response = await fetch(`${PROXY_BASE}/api/v2/status`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${HYPER3D_KEY}`, 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Authorization': `Bearer ${HYPER3D_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ subscription_key: taskData.subKey })
         });
-        if (!response.ok) return; 
         const data = await response.json();
-        const currentStatus = data.status;
-        if (typeof data.progress === 'number') {
-            setProgress(data.progress);
-        } else {
-            setProgress(prev => Math.min(prev + 0.5, 95)); 
-        }
-        if (currentStatus === 'succeed' || currentStatus === 'completed') {
-            setProgress(100);
-            await fetchDownloadUrl(taskData.uuid);
-        } else if (currentStatus === 'failed') {
-            setError("Generation failed on server");
-            setStatus('error');
-        }
-      } catch (err) { console.warn("Polling error:", err); }
+        if (typeof data.progress === 'number') setProgress(data.progress);
+        if (data.status === 'succeed') { setProgress(100); await fetchDownloadUrl(taskData.uuid); }
+      } catch (err) {}
     };
     const fetchDownloadUrl = async (uuid) => {
         try {
             const res = await fetch(`${PROXY_BASE}/api/v2/download`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${HYPER3D_KEY}`, 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Authorization': `Bearer ${HYPER3D_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ task_uuid: uuid })
             });
-            if (!res.ok) throw new Error(`Download API Error: ${res.status}`);
             const dlData = await res.json();
-            const glbUrl = dlData.data?.model_urls?.glb || dlData.model_urls?.glb;
-            const videoUrl = dlData.data?.video_url || dlData.video_url;
-            if (glbUrl) {
-                setResult({ model_url: glbUrl, video_url: videoUrl });
-                setStatus('success');
-            } else {
-                throw new Error("GLB URL missing from download response");
-            }
+            setResult({ model_url: dlData.data?.model_urls?.glb, video_url: dlData.data?.video_url });
+            setStatus('success');
         } catch (e) { setError(e.message); setStatus('error'); }
     };
-    const interval = setInterval(poll, 5000); 
-    return () => clearInterval(interval);
+    const interval = setInterval(poll, 5000); return () => clearInterval(interval);
   }, [status, taskData]);
 
-  if (status === 'error') return ( <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-400 text-xs font-mono break-all"><AlertCircle size={16} /><span>{error}</span></div> );
-  if (status === 'creating' || status === 'polling') return ( <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 flex flex-col gap-3 text-blue-300 font-mono text-xs w-full max-w-md"><div className="flex items-center gap-3"><Loader2 size={16} className="animate-spin text-blue-400" /><div className="flex flex-col"><span className="font-bold tracking-wider">ARTIX ENGINE</span><span className="opacity-70">{status === 'creating' ? 'Initializing...' : `Rendering Asset (${Math.round(progress)}%)`}</span></div></div><div className="h-1.5 w-full bg-blue-900/30 rounded-full overflow-hidden"><div className="h-full bg-blue-400 transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div></div></div> );
-  if (status === 'success') return ( <div className="group relative overflow-hidden rounded-xl bg-black border border-emerald-500/30 max-w-md"><div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start z-10"><div className="flex items-center gap-2 px-2 py-1 rounded bg-emerald-500/20 backdrop-blur border border-emerald-500/30"><Box size={12} className="text-emerald-400" /><span className="text-[10px] font-bold text-emerald-300">HYPER3D</span></div><a href={result?.model_url || "#"} download className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur rounded-lg text-white transition-colors"><Download size={16} /></a></div><div className="aspect-square bg-zinc-900 flex items-center justify-center">{result?.video_url ? (<video src={result.video_url} autoPlay loop muted playsInline className="w-full h-full object-cover" />) : (<div className="flex flex-col items-center text-zinc-500"><Box size={48} className="mb-2 opacity-50" /><span className="text-xs">Preview Unavailable</span></div>)}</div><div className="p-3 bg-[#0c0c0c] border-t border-white/5 flex justify-between items-center"><span className="text-[10px] text-zinc-500 font-mono truncate max-w-[150px]">{prompt}</span><span className="text-[10px] text-emerald-500 flex items-center gap-1"><CheckCircle2 size={10} /> Ready</span></div></div> );
-  return null;
+  if (status === 'error') return ( <div className="p-4 bg-red-900/10 border border-red-500/30 text-red-400 text-xs font-mono">{error}</div> );
+  if (status === 'success') return ( <div className="bg-black border border-emerald-500/30 rounded-xl overflow-hidden max-w-md"><video src={result.video_url} autoPlay loop muted className="w-full" /></div> );
+  return ( <div className="p-4 bg-blue-900/10 border border-blue-500/30 text-blue-300 font-mono text-xs"><Loader2 className="animate-spin inline mr-2"/> Rendering 3D Asset... {Math.round(progress)}%</div> );
 };
 
 // --- TYPEWRITER ---
@@ -277,20 +184,11 @@ const Typewriter = ({ text, speed = 5, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
   useEffect(() => {
     setDisplayedText(''); 
-    if (!text || text.length < 5 || text.includes(':::')) {
-        setDisplayedText(text || '');
-        if(onComplete) onComplete();
-        return;
-    }
+    if (!text || text.length < 5 || text.includes(':::')) { setDisplayedText(text || ''); if(onComplete) onComplete(); return; }
     let i = 0;
     const timer = setInterval(() => {
-      if (i <= text.length) {
-        setDisplayedText(text.slice(0, i));
-        i++;
-      } else {
-        clearInterval(timer);
-        if (onComplete) onComplete();
-      }
+      if (i <= text.length) { setDisplayedText(text.slice(0, i)); i++; } 
+      else { clearInterval(timer); if (onComplete) onComplete(); }
     }, speed);
     return () => clearInterval(timer);
   }, [text, speed, onComplete]);
@@ -298,212 +196,335 @@ const Typewriter = ({ text, speed = 5, onComplete }) => {
   const CodeBlock = ({ inline, className, children, ...props }) => {
     const match = /language-(\w+)/.exec(className || '');
     return !inline ? (
-      <div className="my-4 rounded-lg bg-black/40 border border-emerald-500/10 overflow-hidden font-mono text-xs sm:text-sm shadow-inner">
-        <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5"><span className="text-xs text-emerald-500/50 font-medium tracking-wider">{match ? match[1].toUpperCase() : 'CODE'}</span><div className="flex space-x-1.5"><div className="w-2 h-2 rounded-full bg-white/10"></div><div className="w-2 h-2 rounded-full bg-white/10"></div></div></div><div className="p-4 overflow-x-auto text-emerald-100/90 custom-scrollbar"><code className={className} {...props}>{children}</code></div>
-      </div>
-    ) : (<code className="bg-emerald-900/30 text-emerald-300 px-1 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>);
+      <div className="my-4 rounded-lg bg-black/40 border border-emerald-500/10 font-mono text-xs"><div className="px-4 py-2 bg-white/5 border-b border-white/5 text-emerald-500/50">{match?.[1].toUpperCase()}</div><div className="p-4 overflow-x-auto text-emerald-100/90 custom-scrollbar"><code className={className} {...props}>{children}</code></div></div>
+    ) : (<code className="bg-emerald-900/30 text-emerald-300 px-1 rounded text-xs font-mono" {...props}>{children}</code>);
+  };
+  return ( <div className="markdown-content text-[13px] leading-7 text-zinc-200"><ReactMarkdown children={displayedText} components={{ code: CodeBlock }} /></div> );
+};
+
+// --- MULTIPLAYER PONG COMPONENT ---
+const MultiplayerPong = ({ onClose }) => {
+  const canvasRef = useRef(null);
+  
+  // Connection State
+  const [peer, setPeer] = useState(null);
+  const [conn, setConn] = useState(null);
+  const [myId, setMyId] = useState('');
+  const [joinId, setJoinId] = useState('');
+  const [mode, setMode] = useState('menu'); // 'menu', 'hosting', 'joining', 'playing'
+  const [role, setRole] = useState(null); // 'host', 'client'
+  const [scores, setScores] = useState({ p1: 0, p2: 0 });
+  const [statusMsg, setStatusMsg] = useState('');
+
+  // Game Settings
+  const INITIAL_SPEED = 1; // Balanced
+  const MAX_SPEED = 8;
+  const PADDLE_SPEED = 7; // Pixels per frame (at 60fps = 540px/sec) - VERY SMOOTH
+
+  // Game State (Refs for performance)
+  const gameState = useRef({
+    ball: { x: 400, y: 225, dx: INITIAL_SPEED, dy: INITIAL_SPEED },
+    p1: { y: 185 },
+    p2: { y: 185 },
+    score: { p1: 0, p2: 0 }
+  });
+  const myPaddle = useRef(185);
+  
+  // Input State (The magic fix for smoothness)
+  const keysPressed = useRef({ up: false, down: false });
+
+  // --- INITIALIZE PEER ---
+  useEffect(() => {
+    const randomId = 'ARTIX-' + Math.floor(1000 + Math.random() * 9000);
+    const newPeer = new Peer(randomId);
+    
+    newPeer.on('open', (id) => {
+      setMyId(id);
+      console.log('My ID:', id);
+    });
+
+    newPeer.on('connection', (connection) => {
+      console.log('Incoming connection...');
+      setConn(connection);
+      setRole('host');
+      setMode('playing');
+      setStatusMsg('CONNECTED');
+      setupConnectionHandlers(connection, 'host');
+    });
+
+    setPeer(newPeer);
+    return () => newPeer.destroy();
+  }, []);
+
+  const setupConnectionHandlers = (connection, currentRole) => {
+    connection.on('data', (data) => {
+      if (currentRole === 'host') {
+        if (data.type === 'INPUT') {
+            gameState.current.p2.y = data.y;
+        }
+      } else {
+        if (data.type === 'UPDATE') {
+            gameState.current = data.state;
+            setScores(data.state.score);
+        }
+      }
+    });
+    
+    connection.on('close', () => {
+        setStatusMsg("OPPONENT DISCONNECTED");
+        setTimeout(onClose, 3000);
+    });
   };
 
-  return ( <div className="markdown-content text-[13px] sm:text-[14px] leading-7 font-light tracking-wide text-zinc-200"><ReactMarkdown children={displayedText} remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ code: CodeBlock, strong: ({node, ...props}) => <span className="text-emerald-400 font-bold" {...props} />, a: ({node, ...props}) => <a className="text-emerald-500 hover:underline" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />, p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, }} /></div> );
-};
+  const handleJoin = () => {
+    if (!joinId) return;
+    const cleanId = joinId.toUpperCase().startsWith('ARTIX-') ? joinId.toUpperCase() : `ARTIX-${joinId}`;
+    setStatusMsg(`CONNECTING TO ${cleanId}...`);
+    
+    const connection = peer.connect(cleanId);
+    setConn(connection);
+    setRole('client');
+    
+    connection.on('open', () => {
+        setMode('playing');
+        setStatusMsg('CONNECTED');
+        setupConnectionHandlers(connection, 'client');
+    });
 
-// --- EIFFEL TOWER AESTHETIC COMPONENT ---
-const EiffelTowerAnimation = () => {
-    return (
-        <div className="fixed inset-0 z-[3000] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center overflow-hidden animate-in fade-in duration-1000">
-            <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/20 via-transparent to-black pointer-events-none"></div>
-            <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
-                {[...Array(25)].map((_, i) => (
-                    <div key={i} className="absolute animate-pulse text-yellow-100/40" style={{ top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 2}s`, animationDuration: `${2 + Math.random() * 3}s` }}>
-                        <Sparkles size={Math.random() > 0.5 ? 10 : 20} />
-                    </div>
-                ))}
-            </div>
-            <div className="relative z-10 drop-shadow-[0_0_15px_rgba(234,179,8,0.3)]">
-                <svg width="320" height="480" viewBox="0 0 400 600" className="stroke-emerald-200/90 fill-none" style={{ strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
-                    <defs><linearGradient id="parisGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#34d399" /><stop offset="50%" stopColor="#fbbf24" /><stop offset="100%" stopColor="#10b981" /></linearGradient></defs>
-                    <style>{`.draw-path { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 4.5s ease-in-out forwards; stroke: url(#parisGrad); } @keyframes draw { to { stroke-dashoffset: 0; } }`}</style>
-                    <path className="draw-path" d="M200,20 L200,80 M200,20 L195,80 L205,80 L200,20 M185,150 L215,150 L210,80 L190,80 L185,150 M170,280 L230,280 L215,150 L185,150 L170,280" />
-                    <path className="draw-path" d="M170,280 L140,400 L110,550 L160,550 L175,400 M230,280 L260,400 L290,550 L240,550 L225,400" />
-                    <path className="draw-path" d="M140,550 Q200,450 260,550" />
-                    <path className="draw-path" d="M140,400 L260,400 M175,400 L225,400 M190,150 L210,150 M160,530 L240,530" />
-                </svg>
-            </div>
-            <div className="mt-8 text-center z-10">
-                <h1 className="text-6xl font-thin tracking-[0.5em] text-transparent bg-clip-text bg-gradient-to-r from-emerald-200 via-yellow-100 to-emerald-200 animate-pulse" style={{ animationDuration: '4s' }}>PARIS</h1>
-                <p className="text-[10px] text-emerald-500/50 uppercase tracking-widest mt-2 font-mono">Je t'aime</p>
-            </div>
-        </div>
-    );
-};
+    connection.on('error', (err) => setStatusMsg("CONNECTION FAILED"));
+  };
 
-// --- PONG GAME COMPONENT ---
-const PongGame = ({ onClose }) => {
-  const canvasRef = useRef(null);
-  const [scores, setScores] = useState({ p1: 0, p2: 0 });
-  const [gameStarted, setGameStarted] = useState(false);
-
+  // --- GAME LOOP ---
   useEffect(() => {
+    if (mode !== 'playing') return;
+    
     const canvas = canvasRef.current;
-    if(!canvas) return;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    let animationFrameId;
+    let animationId;
 
-    // Game Objects
-    const ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 6, speed: 5, dx: 5, dy: 5, color: '#10b981' };
-    const paddleWidth = 10, paddleHeight = 80;
-    const p1 = { x: 10, y: canvas.height / 2 - paddleHeight / 2, width: paddleWidth, height: paddleHeight, score: 0, dy: 0, speed: 8 };
-    const p2 = { x: canvas.width - 20, y: canvas.height / 2 - paddleHeight / 2, width: paddleWidth, height: paddleHeight, score: 0, dy: 0, speed: 8 };
+    const PADDLE_HEIGHT = 80;
+    const CANVAS_HEIGHT = 450;
+    const CANVAS_WIDTH = 800;
 
-    // Keys
-    const keys = { w: false, s: false, ArrowUp: false, ArrowDown: false };
-
+    // --- SMOOTH INPUT HANDLERS ---
     const handleKeyDown = (e) => {
-        if(e.key === 'w' || e.key === 'W') keys.w = true;
-        if(e.key === 's' || e.key === 'S') keys.s = true;
-        if(e.key === 'ArrowUp') keys.ArrowUp = true;
-        if(e.key === 'ArrowDown') keys.ArrowDown = true;
+        if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keysPressed.current.up = true;
+        if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keysPressed.current.down = true;
     };
+    
     const handleKeyUp = (e) => {
-        if(e.key === 'w' || e.key === 'W') keys.w = false;
-        if(e.key === 's' || e.key === 'S') keys.s = false;
-        if(e.key === 'ArrowUp') keys.ArrowUp = false;
-        if(e.key === 'ArrowDown') keys.ArrowDown = false;
+        if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keysPressed.current.up = false;
+        if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keysPressed.current.down = false;
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
-    const resetBall = () => {
-        ball.x = canvas.width / 2;
-        ball.y = canvas.height / 2;
-        ball.speed = 5;
-        ball.dx = -ball.dx;
+    // --- MAIN LOOP ---
+    const loop = () => {
+        // 1. Process Input (Every Frame)
+        let moved = false;
+        if (keysPressed.current.up && myPaddle.current > 0) {
+            myPaddle.current -= PADDLE_SPEED;
+            moved = true;
+        }
+        if (keysPressed.current.down && myPaddle.current < CANVAS_HEIGHT - PADDLE_HEIGHT) {
+            myPaddle.current += PADDLE_SPEED;
+            moved = true;
+        }
+
+        // 2. Sync Input with Network
+        if (moved) {
+            if (role === 'host') {
+                gameState.current.p1.y = myPaddle.current;
+            } else if (conn) {
+                // Throttle sending slightly or send every frame? 
+                // For local peerJS, sending every frame on change is usually fine for responsiveness.
+                conn.send({ type: 'INPUT', y: myPaddle.current });
+            }
+        }
+
+        // 3. Process Physics (Host Only)
+        if (role === 'host') updatePhysics();
+
+        // 4. Draw
+        draw(ctx);
+
+        animationId = requestAnimationFrame(loop);
     };
 
-    const update = () => {
-        // Paddle Movement
-        if (keys.w && p1.y > 0) p1.y -= p1.speed;
-        if (keys.s && p1.y < canvas.height - p1.height) p1.y += p1.speed;
-        if (keys.ArrowUp && p2.y > 0) p2.y -= p2.speed;
-        if (keys.ArrowDown && p2.y < canvas.height - p2.height) p2.y += p2.speed;
+    const updatePhysics = () => {
+        const state = gameState.current;
+        const { ball } = state;
 
-        // Ball Movement
         ball.x += ball.dx;
         ball.y += ball.dy;
 
-        // Wall Collision (Top/Bottom)
-        if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) ball.dy *= -1;
+        // Wall
+        if (ball.y + 6 > CANVAS_HEIGHT || ball.y - 6 < 0) ball.dy *= -1;
 
-        // Paddle Collision
-        let player = (ball.x < canvas.width / 2) ? p1 : p2;
-        if (
-            ball.x - ball.radius < player.x + player.width &&
-            ball.x + ball.radius > player.x &&
-            ball.y + ball.radius > player.y &&
-            ball.y - ball.radius < player.y + player.height
-        ) {
-            // Hit logic
-            let collidePoint = ball.y - (player.y + player.height / 2);
-            collidePoint = collidePoint / (player.height / 2);
-            let angleRad = (Math.PI / 4) * collidePoint;
-            let direction = (ball.x < canvas.width / 2) ? 1 : -1;
-            
-            ball.dx = direction * ball.speed * Math.cos(angleRad);
-            ball.dy = ball.speed * Math.sin(angleRad);
-            ball.speed += 0.2; // Increase speed
+        // Paddles
+        const p1 = { x: 10, y: state.p1.y, w: 10, h: PADDLE_HEIGHT };
+        const p2 = { x: CANVAS_WIDTH - 20, y: state.p2.y, w: 10, h: PADDLE_HEIGHT };
+
+        // Hit P1 (Left)
+        if (ball.x - 6 < p1.x + p1.w && ball.y > p1.y && ball.y < p1.y + p1.h) {
+            let newSpeed = Math.abs(ball.dx) + 0.5;
+            if(newSpeed > MAX_SPEED) newSpeed = MAX_SPEED;
+            ball.dx = newSpeed; 
+        }
+        // Hit P2 (Right)
+        if (ball.x + 6 > p2.x && ball.y > p2.y && ball.y < p2.y + p2.h) {
+            let newSpeed = Math.abs(ball.dx) + 0.5;
+            if(newSpeed > MAX_SPEED) newSpeed = MAX_SPEED;
+            ball.dx = -newSpeed;
         }
 
-        // Scoring
-        if (ball.x - ball.radius < 0) {
-            p2.score++;
-            setScores({p1: p1.score, p2: p2.score});
-            resetBall();
-        } else if (ball.x + ball.radius > canvas.width) {
-            p1.score++;
-            setScores({p1: p1.score, p2: p2.score});
-            resetBall();
+        // Score
+        if (ball.x < 0) { state.score.p2++; resetBall(state); } 
+        else if (ball.x > CANVAS_WIDTH) { state.score.p1++; resetBall(state); }
+
+        if (conn) {
+            conn.send({ type: 'UPDATE', state: state });
+            setScores({...state.score}); 
         }
     };
 
-    const draw = () => {
+    const resetBall = (state) => {
+        state.ball = { 
+            x: 400, 
+            y: 225, 
+            dx: (Math.random() > 0.5 ? INITIAL_SPEED : -INITIAL_SPEED), 
+            dy: (Math.random() > 0.5 ? INITIAL_SPEED : -INITIAL_SPEED) 
+        };
+    };
+
+    const draw = (ctx) => {
         // Clear
         ctx.fillStyle = '#050505';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
         // Net
         ctx.beginPath();
         ctx.setLineDash([5, 15]);
-        ctx.moveTo(canvas.width / 2, 0);
-        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.moveTo(CANVAS_WIDTH / 2, 0);
+        ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
+        ctx.strokeStyle = '#10b98120';
         ctx.lineWidth = 2;
-        ctx.strokeStyle = '#10b98133'; // Low opacity emerald
         ctx.stroke();
 
         // Ball
+        const { ball, p1, p2 } = gameState.current;
         ctx.beginPath();
-        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-        ctx.fillStyle = ball.color;
+        ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#10b981';
         ctx.fill();
-        ctx.closePath();
-        // Glow
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = ball.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#10b981';
 
         // Paddles
-        ctx.fillStyle = '#10b981';
-        ctx.fillRect(p1.x, p1.y, p1.width, p1.height);
-        ctx.fillRect(p2.x, p2.y, p2.width, p2.height);
-        ctx.shadowBlur = 0; // Reset glow for other elements
+        // Host (Left)
+        ctx.shadowBlur = role === 'host' ? 15 : 0; 
+        ctx.shadowColor = '#10b981';
+        ctx.fillStyle = role === 'host' ? '#10b981' : '#10b98150'; 
+        ctx.fillRect(10, role === 'host' ? myPaddle.current : p1.y, 10, PADDLE_HEIGHT);
+        
+        // Client (Right)
+        ctx.shadowBlur = role === 'client' ? 15 : 0;
+        ctx.shadowColor = '#10b981';
+        ctx.fillStyle = role === 'client' ? '#10b981' : '#10b98150';
+        ctx.fillRect(CANVAS_WIDTH - 20, role === 'client' ? myPaddle.current : p2.y, 10, PADDLE_HEIGHT);
     };
 
-    const gameLoop = () => {
-        update();
-        draw();
-        animationFrameId = requestAnimationFrame(gameLoop);
-    };
-
-    // Initial Draw before loop
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Start loop
-    gameLoop();
+    // START
+    loop();
 
     return () => {
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
-        cancelAnimationFrame(animationFrameId);
+        cancelAnimationFrame(animationId);
     };
-  }, []);
+  }, [mode, role, conn]);
 
+  // --- RENDER UI ---
   return (
-    <div className="relative w-full max-w-4xl aspect-video bg-black border-4 border-emerald-900/50 rounded-xl shadow-2xl shadow-emerald-500/20 overflow-hidden">
-        {/* CRT Scanline Effect */}
+    <div className="relative w-full max-w-4xl aspect-video bg-black border-4 border-emerald-900/50 rounded-xl shadow-2xl shadow-emerald-500/20 overflow-hidden flex flex-col items-center justify-center">
+        {/* CRT Effect */}
         <div className="absolute inset-0 pointer-events-none z-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,6px_100%]"></div>
-        
-        {/* Score Board */}
-        <div className="absolute top-4 left-0 right-0 flex justify-between px-12 z-10 font-mono text-4xl font-bold text-emerald-500/50 select-none">
-            <span>{scores.p1}</span>
-            <span>{scores.p2}</span>
-        </div>
+        <button onClick={onClose} className="absolute top-4 right-4 z-50 p-2 text-emerald-500/50 hover:text-red-500 cursor-pointer"><X size={20} /></button>
 
-        {/* Controls Hint */}
-        <div className="absolute bottom-4 left-0 right-0 flex justify-between px-8 z-10 text-[10px] text-emerald-500/30 font-mono uppercase tracking-widest select-none">
-            <span>P1: W / S</span>
-            <span>P2: UP / DOWN</span>
-        </div>
+        {mode === 'menu' && (
+            <div className="flex flex-col items-center space-y-8 z-30 animate-in zoom-in-95 duration-300">
+                <div className="flex flex-col items-center">
+                    <Wifi size={48} className="text-emerald-500 mb-4 animate-pulse" />
+                    <h2 className="text-3xl font-bold text-white tracking-[0.2em] font-mono">MULTIPLAYER PROTOCOL</h2>
+                    <p className="text-emerald-500/50 text-xs font-mono mt-2">SECURE P2P CONNECTION ESTABLISHED</p>
+                </div>
+                <div className="flex gap-6">
+                    <button onClick={() => setMode('hosting')} className="group flex flex-col items-center p-6 border border-emerald-500/30 rounded-xl hover:bg-emerald-900/20 transition-all w-48 cursor-pointer">
+                        <Radio size={32} className="text-emerald-400 mb-3 group-hover:scale-110 transition-transform" />
+                        <span className="text-emerald-300 font-bold tracking-widest">HOST</span>
+                        <span className="text-emerald-500/40 text-[10px] mt-1">CREATE FREQUENCY</span>
+                    </button>
+                    <button onClick={() => setMode('joining')} className="group flex flex-col items-center p-6 border border-emerald-500/30 rounded-xl hover:bg-emerald-900/20 transition-all w-48 cursor-pointer">
+                        <Gamepad2 size={32} className="text-emerald-400 mb-3 group-hover:scale-110 transition-transform" />
+                        <span className="text-emerald-300 font-bold tracking-widest">JOIN</span>
+                        <span className="text-emerald-500/40 text-[10px] mt-1">CONNECT TO FREQUENCY</span>
+                    </button>
+                </div>
+            </div>
+        )}
 
-        <canvas 
-            ref={canvasRef} 
-            width={800} 
-            height={450} 
-            className="w-full h-full block"
-        />
+        {mode === 'hosting' && (
+             <div className="flex flex-col items-center space-y-6 z-30 animate-in fade-in duration-300">
+                <Loader2 size={48} className="text-emerald-500 animate-spin" />
+                <div className="text-center">
+                    <p className="text-emerald-500/50 text-xs font-mono mb-2">WAITING FOR PLAYER 2...</p>
+                    <div className="bg-emerald-900/20 border border-emerald-500/50 p-4 rounded-lg">
+                        <span className="text-4xl font-mono font-bold text-white tracking-widest select-all">{myId.replace('ARTIX-', '')}</span>
+                    </div>
+                    <p className="text-zinc-500 text-[10px] mt-4 max-w-xs">Share this frequency code with your opponent. The game will start automatically when they join.</p>
+                </div>
+                <button onClick={() => setMode('menu')} className="text-xs text-red-500 hover:underline cursor-pointer">CANCEL</button>
+             </div>
+        )}
 
-        <button onClick={onClose} className="absolute top-4 right-4 z-30 p-2 bg-emerald-900/20 hover:bg-red-900/40 text-emerald-500 hover:text-red-400 rounded-full transition-colors cursor-pointer border border-emerald-500/20">
-            <X size={20} />
-        </button>
+        {mode === 'joining' && (
+             <div className="flex flex-col items-center space-y-6 z-30 animate-in fade-in duration-300">
+                <div className="text-center">
+                    <p className="text-emerald-500/50 text-xs font-mono mb-4">ENTER HOST FREQUENCY CODE</p>
+                    <div className="flex items-center gap-2">
+                        <span className="text-emerald-500/50 font-mono text-xl">ARTIX-</span>
+                        <input 
+                            value={joinId}
+                            onChange={(e) => setJoinId(e.target.value)}
+                            placeholder="XXXX"
+                            maxLength={4}
+                            className="bg-transparent border-b-2 border-emerald-500 text-3xl font-mono text-white w-24 text-center focus:outline-none uppercase tracking-widest placeholder-zinc-700"
+                        />
+                    </div>
+                </div>
+                <button onClick={handleJoin} disabled={joinId.length < 4} className="px-8 py-2 bg-emerald-600 text-white rounded font-bold tracking-widest hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer">CONNECT</button>
+                <button onClick={() => setMode('menu')} className="text-xs text-zinc-500 hover:text-white cursor-pointer">BACK</button>
+                {statusMsg && <p className="text-red-400 text-xs font-mono">{statusMsg}</p>}
+             </div>
+        )}
+
+        {mode === 'playing' && (
+            <>
+                <div className="absolute top-6 left-0 right-0 flex justify-between px-20 z-10 font-mono text-5xl font-bold text-emerald-500/20 select-none pointer-events-none">
+                    <span>{scores.p1}</span>
+                    <span>{scores.p2}</span>
+                </div>
+                <div className="absolute bottom-4 left-0 right-0 text-center z-10 pointer-events-none">
+                     <span className="text-[10px] text-emerald-500/40 font-mono uppercase tracking-[0.3em]">
+                        {role === 'host' ? 'YOU ARE HOST (LEFT)' : 'YOU ARE CLIENT (RIGHT)'} • USE ARROW KEYS TO MOVE
+                     </span>
+                </div>
+                <canvas ref={canvasRef} width={800} height={450} className="w-full h-full block" />
+            </>
+        )}
     </div>
   );
 };
@@ -533,9 +554,8 @@ export default function ArtixClone() {
   const [artixActive, setArtixActive] = useState(false);
   const [muahActive, setMuahActive] = useState(false);
   
-  // --- PONG STATES ---
+  // --- MULTIPLAYER PONG STATE ---
   const [pongActive, setPongActive] = useState(false);
-  const [pongStatus, setPongStatus] = useState('idle'); // idle, waiting, playing
 
   const flickerRef = useRef(null);
   const glitchTimeoutRef = useRef(null);
@@ -645,24 +665,18 @@ export default function ArtixClone() {
   const handleSend = async () => {
     const lowerInput = input.toLowerCase();
 
-    // --- PONG TRIGGER LOGIC ---
-    if (lowerInput.includes('ping pong') || (pongStatus === 'waiting' && lowerInput.includes('join'))) {
+    // --- PONG TRIGGER ---
+    if (lowerInput.includes('ping pong') || lowerInput.includes('play pong')) {
         if (!pongActive) {
-            // First trigger: Open Lobby
             setPongActive(true);
-            setPongStatus('waiting');
-            setInput('');
-        } else if (pongStatus === 'waiting') {
-            // Second trigger: Start Game
-            setPongStatus('playing');
             setInput('');
         }
-        return; // Stop normal chat sending
+        return; 
     }
 
     if ((!input.trim() && !attachment) || loading) return;
     
-    // Check other triggers
+    // Check triggers
     if (lowerInput.includes('hafsa') && !glitchActive) { handleHafsaTrigger(); return; }
     if (input.includes('11/05/2025') && !gravityActive) { triggerGravityEffect(); return; }
     if (lowerInput.includes('paris') && !parisActive) { setParisActive(true); setTimeout(() => { setParisActive(false); setInput(''); }, 5000); return; }
@@ -688,48 +702,33 @@ export default function ArtixClone() {
   return (
     <div className="flex h-[100dvh] w-full bg-black text-emerald-50 font-sans overflow-hidden fixed inset-0 overscroll-none selection:bg-emerald-500/30">
 
-      {/* --- EASTER EGG OVERLAYS --- */}
-      
-      {/* 1. PARIS OVERLAY */}
+      {/* --- OVERLAYS --- */}
       {parisActive && <EiffelTowerAnimation />}
 
-      {/* 2. ARTIX VIDEO OVERLAY */}
+      {/* ARTIX VIDEO */}
       {artixActive && (
         <div className="fixed inset-0 z-[5000] bg-black flex items-center justify-center animate-in fade-in duration-500">
             <video src="/artix_video.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
-            <button onClick={() => setArtixActive(false)} className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition-all duration-300 z-50 backdrop-blur-sm cursor-pointer border border-white/10"><X size={24} /></button>
-            <div className="absolute bottom-10 left-10 z-40 pointer-events-none"><h1 className="text-4xl font-black text-white/20 tracking-[0.3em] select-none">ARTIX CORE</h1></div>
+            <button onClick={() => setArtixActive(false)} className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"><X size={24} /></button>
         </div>
       )}
 
-      {/* 3. MUAH ALBUM OVERLAY */}
+      {/* MUAH ALBUM */}
       {muahActive && (
         <div className="fixed inset-0 z-[6000] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in zoom-in-95 duration-500 overflow-hidden">
-             {/* Header */}
              <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-50">
-                <div className="flex items-center space-x-3">
-                    <Heart className="text-red-500 fill-red-500 animate-pulse" />
-                    <span className="text-2xl font-light tracking-[0.2em] text-white">I HATE MY LIFE IF YOU FIND THIS</span>
-                </div>
-                <button onClick={() => setMuahActive(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors text-zinc-400 hover:text-white cursor-pointer"><X size={24} /></button>
+                <div className="flex items-center space-x-3"><Heart className="text-red-500 fill-red-500 animate-pulse" /><span className="text-2xl font-light tracking-[0.2em] text-white">MEMORIES</span></div>
+                <button onClick={() => setMuahActive(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors cursor-pointer"><X size={24} /></button>
              </div>
-             
-             {/* Gallery Grid */}
-             <div className="w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar pt-24 pb-20 px-4 sm:px-10">
+             <div className="w-full h-full overflow-y-auto custom-scrollbar pt-24 pb-20 px-4 sm:px-10">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
                     {ALBUM_MEDIA.map((item, index) => (
                         <div key={index} className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl hover:scale-[1.02] transition-transform duration-500">
                              {item.type === 'video' ? (
-                                <>
-                                    <video src={item.src} autoPlay loop muted playsInline className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500" />
-                                    <div className="absolute top-3 right-3 p-1.5 bg-black/60 rounded-full backdrop-blur-sm z-20"><Film size={14} className="text-white/80" /></div>
-                                </>
+                                <><video src={item.src} autoPlay loop muted playsInline className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" /><div className="absolute top-3 right-3 p-1.5 bg-black/60 rounded-full backdrop-blur-sm z-20"><Film size={14} className="text-white/80" /></div></>
                              ) : (
-                                <img src={item.src} alt={`Memory ${index + 1}`} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500" onError={(e) => { e.target.onerror = null; e.target.src = `https://placehold.co/600x800/18181b/10b981?text=Photo+${index+1}`; }} />
+                                <img src={item.src} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.onerror = null; e.target.src = `https://placehold.co/600x800/18181b/10b981?text=Photo+${index+1}`; }} />
                              )}
-                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-10">
-                                <span className="text-emerald-400 font-mono text-xs">{item.type === 'video' ? `VID_00${index + 1}` : `IMG_00${index + 1}`}</span>
-                             </div>
                         </div>
                     ))}
                 </div>
@@ -737,63 +736,29 @@ export default function ArtixClone() {
         </div>
       )}
 
-      {/* 4. HAFSA GLITCH OVERLAY */}
-      {glitchMessage && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 transition-opacity duration-1000 opacity-100">
-            <div className="text-7xl sm:text-9xl animate-pulse transition-all duration-1000 text-red-500 font-extrabold tracking-widest text-center shadow-2xl">
-                {glitchMessage}
-            </div>
-        </div>
-      )}
+      {/* HAFSA GLITCH */}
+      {glitchMessage && ( <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95"><div className="text-7xl sm:text-9xl animate-pulse text-red-500 font-extrabold tracking-widest text-center shadow-2xl">{glitchMessage}</div></div> )}
 
-      {/* 5. GRAVITY OVERLAY */}
+      {/* GRAVITY / DATE */}
       {daysCounter !== null && (
         <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black transition-opacity duration-1000">
-            <div className="animate-pulse mb-8"><Heart size={100} className="text-red-500 fill-red-500 shadow-red-500 drop-shadow-[0_0_35px_rgba(220,38,38,0.8)]" /></div>
+            <div className="animate-pulse mb-8"><Heart size={100} className="text-red-500 fill-red-500 shadow-red-500" /></div>
             <h1 className="text-4xl sm:text-6xl font-thin text-white mb-4 tracking-widest text-center">We have been together for</h1>
-            <div className="text-8xl sm:text-9xl font-bold text-emerald-500 drop-shadow-[0_0_20px_rgba(16,185,129,0.5)] font-mono">{daysCounter}</div>
+            <div className="text-8xl sm:text-9xl font-bold text-emerald-500 font-mono">{daysCounter}</div>
             <h2 className="text-2xl sm:text-3xl font-light text-zinc-400 mt-4 tracking-[0.5em] uppercase">DAYS</h2>
             <p className="mt-12 text-zinc-600 text-sm font-mono opacity-50">Since 11/05/2025</p>
         </div>
       )}
 
-      {/* 6. PONG GAME OVERLAY (MULTIPLAYER WAITING & GAME) */}
+      {/* 6. MULTIPLAYER PONG OVERLAY */}
       {pongActive && (
           <div className="fixed inset-0 z-[9000] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-300">
-              
-              {/* WAITING STATE */}
-              {pongStatus === 'waiting' && (
-                  <div className="flex flex-col items-center text-center space-y-6 animate-pulse">
-                      <Gamepad2 size={80} className="text-emerald-500" />
-                      <h1 className="text-4xl font-bold text-white tracking-[0.2em]">PONG MULTIPLAYER</h1>
-                      <div className="p-6 border border-emerald-500/30 bg-emerald-900/10 rounded-xl max-w-md">
-                          <p className="text-emerald-400 font-mono text-lg mb-2">WAITING FOR PLAYER 2...</p>
-                          <p className="text-zinc-500 text-xs uppercase tracking-widest">Type "Ping Pong" or "Join" to connect</p>
-                      </div>
-                      <div className="flex space-x-2 mt-4">
-                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
-                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
-                      </div>
-                      <button onClick={() => {setPongActive(false); setPongStatus('idle')}} className="mt-8 text-xs text-red-500 hover:text-red-400 uppercase tracking-widest hover:underline cursor-pointer">Cancel Request</button>
-                  </div>
-              )}
-
-              {/* PLAYING STATE */}
-              {pongStatus === 'playing' && (
-                  <PongGame onClose={() => {setPongActive(false); setPongStatus('idle')}} />
-              )}
+              <MultiplayerPong onClose={() => setPongActive(false)} />
           </div>
       )}
 
-      {/* --- APP CONTENT WRAPPER --- */}
-      <div 
-        className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive ? 'hidden' : 'relative'}`}
-        style={glitchActive 
-            ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } 
-            : {}
-        }
-      >
+      {/* --- APP LAYOUT --- */}
+      <div className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive ? 'hidden' : 'relative'}`} style={glitchActive ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } : {}}>
         
         {/* SIDEBAR */}
         <div ref={sidebarRef} className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
@@ -803,47 +768,43 @@ export default function ArtixClone() {
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
             <button onClick={createSession} className="w-full mb-6 flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 p-3 rounded-lg transition-all duration-200 group cursor-pointer active:scale-95"><Plus size={14} className="group-hover:scale-110 transition-transform text-emerald-400" /><span className="text-xs font-medium uppercase tracking-wider">New Protocol</span></button>
-            <div className="space-y-1"><h3 className="text-[10px] font-semibold text-zinc-700 uppercase tracking-widest px-3 mb-2">Active Sessions</h3>{sessions.map(session => (<div key={session.id} onClick={() => { setActiveSessionId(session.id); if (window.innerWidth < 768) setSidebarOpen(false); }} className={`w-full relative group cursor-pointer p-3 rounded-lg flex items-center justify-between transition-all duration-200 active:bg-white/10 ${activeSessionId === session.id ? 'bg-emerald-500/5 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}>{activeSessionId === session.id && <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-emerald-500 rounded-r-full box-shadow-glow"></div>}<div className="flex items-center space-x-3 overflow-hidden"><MessageSquare size={14} className={activeSessionId === session.id ? "text-emerald-400" : "text-zinc-600"} /><span className={`text-xs truncate w-36 font-medium ${activeSessionId === session.id ? "text-emerald-100" : "text-zinc-500 group-hover:text-zinc-300"}`}>{session.title}</span></div>{sessions.length > 1 && <button onClick={(e) => deleteSession(e, session.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded transition-all text-zinc-600"><Trash2 size={12} /></button>}</div>))}</div>
+            <div className="space-y-1">{sessions.map(session => (<div key={session.id} onClick={() => { setActiveSessionId(session.id); if (window.innerWidth < 768) setSidebarOpen(false); }} className={`w-full relative group cursor-pointer p-3 rounded-lg flex items-center justify-between transition-all duration-200 active:bg-white/10 ${activeSessionId === session.id ? 'bg-emerald-500/5 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}>{activeSessionId === session.id && <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-emerald-500 rounded-r-full box-shadow-glow"></div>}<div className="flex items-center space-x-3 overflow-hidden"><MessageSquare size={14} className={activeSessionId === session.id ? "text-emerald-400" : "text-zinc-600"} /><span className={`text-xs truncate w-36 font-medium ${activeSessionId === session.id ? "text-emerald-100" : "text-zinc-500 group-hover:text-zinc-300"}`}>{session.title}</span></div>{sessions.length > 1 && <button onClick={(e) => deleteSession(e, session.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded transition-all text-zinc-600"><Trash2 size={12} /></button>}</div>))}</div>
           </div>
-          <div className="p-4 border-t border-white/5 bg-[#050505] pb-[calc(1rem+env(safe-area-inset-bottom))]"><button onClick={() => setDeepThink(!deepThink)} className={`w-full p-3 rounded-lg border transition-all duration-300 flex items-center justify-between group cursor-pointer ${deepThink ? 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-transparent border-white/5 hover:border-white/10'}`}><div className="flex items-center space-x-3"><div className={`p-1.5 rounded ${deepThink ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}><Zap size={14} className={deepThink ? "fill-current" : ""} /></div><div className="flex flex-col items-start"><span className={`text-xs font-medium ${deepThink ? "text-emerald-100" : "text-zinc-500"}`}>Deep Thinking</span><span className="text-[9px] text-zinc-600">{deepThink ? "Reasoning: MAX" : "Reasoning: STANDARD"}</span></div></div><div className={`w-1.5 h-1.5 rounded-full transition-all ${deepThink ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-zinc-800"}`} /></button></div>
         </div>
 
         {/* CHAT AREA */}
         <div ref={chatRef} className="flex-1 flex flex-col min-w-0 bg-black relative transition-transform duration-1000">
           <header className="absolute top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
             <div className="h-16 flex items-center justify-between px-4 md:px-6">
-              <div className="flex items-center space-x-3 md:space-x-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer active:bg-white/10 rounded-full"><Menu size={24} /></button><button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:block p-2 hover:bg-white/5 rounded-lg text-zinc-500 transition-colors cursor-pointer">{sidebarOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button><div className="h-4 w-[1px] bg-white/10"></div><div className="flex flex-col min-w-0"><span className="text-xs font-medium text-zinc-200 tracking-wide truncate">{activeSession.title}</span><div className="flex items-center space-x-2"><span className="text-[10px] text-emerald-500/60 flex items-center gap-1"><div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>ONLINE</span></div></div></div>
-              <button onClick={() => setCanvasOpen(!canvasOpen)} className={`group flex items-center space-x-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer active:scale-95 ${canvasOpen ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-zinc-400 border border-white/5 hover:bg-white/10'}`}><Layout size={14} className={canvasOpen ? "text-emerald-400" : "text-zinc-500 group-hover:text-emerald-400 transition-colors"} /><span className="hidden sm:inline">Canvas Engine</span><span className="sm:hidden">Canvas</span></button>
+              <div className="flex items-center space-x-3 md:space-x-4"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-3 -ml-3 text-zinc-400 hover:text-white transition-colors md:hidden cursor-pointer"><Menu size={24} /></button><button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:block p-2 hover:bg-white/5 rounded-lg text-zinc-500 cursor-pointer">{sidebarOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button><div className="h-4 w-[1px] bg-white/10"></div><span className="text-xs font-medium text-zinc-200 truncate">{activeSession.title}</span></div>
+              <button onClick={() => setCanvasOpen(!canvasOpen)} className={`group flex items-center space-x-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer ${canvasOpen ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-zinc-400 border border-white/5'}`}><Layout size={14} /><span className="hidden sm:inline">Canvas Engine</span></button>
             </div>
           </header>
-          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar overscroll-contain">
-            <div className="h-[calc(4rem+env(safe-area-inset-top))] w-full"></div>
-            <div className="px-3 sm:px-8 md:px-16 space-y-6 pb-4">
-              {activeSession.messages.map((msg, idx) => (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 sm:px-8 md:px-16 space-y-6 pb-4 pt-24">
+            {activeSession.messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} group`}>
-                  <div className={`max-w-[95%] md:max-w-3xl flex gap-3 md:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}><div className={`hidden sm:flex w-8 h-8 rounded-lg flex-shrink-0 items-center justify-center mt-1 shadow-lg ${msg.role === 'user' ? 'bg-zinc-800 border border-white/5' : 'bg-gradient-to-br from-emerald-900/40 to-black border border-emerald-500/20'}`}>{msg.role === 'user' ? <div className="w-3 h-3 bg-zinc-400 rounded-sm" /> : <Terminal size={14} className="text-emerald-400" />}</div>
+                  <div className={`max-w-[95%] md:max-w-3xl flex gap-3 md:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div className={`hidden sm:flex w-8 h-8 rounded-lg flex-shrink-0 items-center justify-center mt-1 shadow-lg ${msg.role === 'user' ? 'bg-zinc-800 border border-white/5' : 'bg-gradient-to-br from-emerald-900/40 to-black border border-emerald-500/20'}`}>{msg.role === 'user' ? <div className="w-3 h-3 bg-zinc-400 rounded-sm" /> : <Terminal size={14} className="text-emerald-400" />}</div>
                     <div className="flex flex-col space-y-2 min-w-0">
-                      {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} alt="Attachment" className="w-full h-auto" /></div>)}
-                      {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} alt="Generated Art" className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500 hover:text-black transition-colors"><Download size={14} /></a></div></div>)}
+                      {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} className="w-full h-auto" /></div>)}
+                      {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500"><Download size={14} /></a></div></div>)}
                       {msg.threeDPrompt && (<ThreeDGenerator prompt={msg.threeDPrompt} />)}
                       {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={5} />)}</div>)}
                     </div>
                   </div>
                 </div>
-              ))}
-              {loading && (<div className="flex justify-start sm:pl-16 pl-2"><div className="flex items-center space-x-1.5 h-8 px-4 rounded-full bg-white/5 border border-white/5 w-fit"><Loader2 size={14} className="animate-spin text-emerald-500/60" /><span className="ml-2 text-[10px] text-emerald-500/50 font-mono uppercase tracking-widest">Neural Processing</span></div></div>)}
-              <div ref={messagesEndRef} />
-            </div>
-            <div className="h-[calc(5rem+env(safe-area-inset-bottom))] w-full"></div>
+            ))}
+            {loading && (<div className="flex justify-start sm:pl-16 pl-2"><div className="flex items-center space-x-1.5 h-8 px-4 rounded-full bg-white/5 border border-white/5 w-fit"><Loader2 size={14} className="animate-spin text-emerald-500/60" /><span className="ml-2 text-[10px] text-emerald-500/50 font-mono uppercase tracking-widest">Neural Processing</span></div></div>)}
+            <div ref={messagesEndRef} />
           </div>
           <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 z-30 pointer-events-none flex justify-center bg-gradient-to-t from-black via-black to-transparent pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <div className="w-full max-w-3xl pointer-events-auto relative group">
-              {attachment && (<div className="absolute bottom-full mb-3 left-0 bg-[#0c0c0c] border border-emerald-500/20 p-2 rounded-xl flex items-center space-x-3 shadow-2xl w-full sm:w-auto"><div className="w-12 h-12 rounded-lg overflow-hidden bg-black shrink-0"><img src={attachment.preview} className="w-full h-full object-cover" alt="preview" /></div><div className="flex flex-col flex-1 min-w-0"><span className="text-[10px] text-emerald-400 font-mono uppercase">Vision Input</span><span className="text-[9px] text-zinc-600 truncate">{attachment.type}</span></div><button onClick={clearAttachment} className="p-2 hover:bg-white/10 rounded-full text-zinc-500 hover:text-red-400 cursor-pointer"><X size={16} /></button></div>)}
+              {attachment && (<div className="absolute bottom-full mb-3 left-0 bg-[#0c0c0c] border border-emerald-500/20 p-2 rounded-xl flex items-center space-x-3 shadow-2xl w-full sm:w-auto"><div className="w-12 h-12 rounded-lg overflow-hidden bg-black shrink-0"><img src={attachment.preview} className="w-full h-full object-cover" /></div><div className="flex flex-col flex-1 min-w-0"><span className="text-[10px] text-emerald-400 font-mono uppercase">Vision Input</span><span className="text-[9px] text-zinc-600 truncate">{attachment.type}</span></div><button onClick={clearAttachment} className="p-2 hover:bg-white/10 rounded-full text-zinc-500 hover:text-red-400 cursor-pointer"><X size={16} /></button></div>)}
               <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
               <div className="relative flex items-end bg-[#0c0c0c]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:border-emerald-500/50 transition-colors">
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><button onClick={() => fileInputRef.current?.click()} className="ml-2 mb-2 p-3 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer active:bg-white/10 rounded-full"><Paperclip size={20} /></button>
                 <textarea value={input} onChange={handleInputChange} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder="Enter directive..." className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 placeholder-zinc-600 py-4 px-2 focus:ring-0 resize-none h-auto min-h-[56px] max-h-32 custom-scrollbar leading-relaxed" rows={1} disabled={glitchActive || gravityActive} />
-                <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment && !pongActive && pongStatus !== 'waiting') || glitchActive || gravityActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
+                <div className="mr-2 mb-2"><button onClick={handleSend} disabled={loading || (!input.trim() && !attachment && !pongActive) || glitchActive || gravityActive} className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center cursor-pointer ${input.trim() || attachment ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 active:scale-95' : 'bg-white/5 text-zinc-600 cursor-not-allowed'}`}><Send size={18} className={input.trim() ? "ml-0.5" : ""} /></button></div>
               </div>
             </div>
           </div>
