@@ -608,6 +608,8 @@ export default function ArtixClone() {
     if (lowerInput.includes('muah') && !muahActive) { setMuahActive(true); setInput(''); return; }
     if (lowerInput.includes('cr7') && !cr7Active) { setCr7Active(true); setInput(''); return; }
     
+    const currentInput = input;
+    
     // MEMORIES - Add to chat instead of overlay
     if (lowerInput.includes('memories')) {
       const romanticText = ROMANTIC_MESSAGES[Math.floor(Math.random() * ROMANTIC_MESSAGES.length)];
@@ -627,8 +629,6 @@ export default function ArtixClone() {
       setInput('');
       return;
     }
-
-    const currentInput = input;
     const currentAttachment = attachment;
     setInput('');
     clearAttachment();
