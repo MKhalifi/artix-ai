@@ -472,8 +472,6 @@ export default function ArtixClone() {
   const [artixActive, setArtixActive] = useState(false);
   const [muahActive, setMuahActive] = useState(false);
   const [cr7Active, setCr7Active] = useState(false); // CR7 STATE
-  const [memoriesActive, setMemoriesActive] = useState(false); // MEMORIES STATE
-  const [romanticMessage, setRomanticMessage] = useState('');
   
   // --- MULTIPLAYER PONG STATE ---
   const [pongActive, setPongActive] = useState(false);
@@ -541,14 +539,8 @@ export default function ArtixClone() {
         setInput('');
     }
     // CR7 TRIGGER
-    else if (lowerVal.includes('cr7') && !cr7Active && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive && !memoriesActive) {
+    else if (lowerVal.includes('cr7') && !cr7Active && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive) {
         setCr7Active(true);
-        setInput('');
-    }
-    // MEMORIES TRIGGER
-    else if (lowerVal.includes('memories') && !memoriesActive && !cr7Active && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive) {
-        setMemoriesActive(true);
-        setRomanticMessage(ROMANTIC_MESSAGES[Math.floor(Math.random() * ROMANTIC_MESSAGES.length)]);
         setInput('');
     }
   };
@@ -615,7 +607,26 @@ export default function ArtixClone() {
     if (lowerInput.includes('artix') && !artixActive) { setArtixActive(true); setInput(''); return; }
     if (lowerInput.includes('muah') && !muahActive) { setMuahActive(true); setInput(''); return; }
     if (lowerInput.includes('cr7') && !cr7Active) { setCr7Active(true); setInput(''); return; }
-    if (lowerInput.includes('memories') && !memoriesActive) { setMemoriesActive(true); setRomanticMessage(ROMANTIC_MESSAGES[Math.floor(Math.random() * ROMANTIC_MESSAGES.length)]); setInput(''); return; }
+    
+    // MEMORIES - Add to chat instead of overlay
+    if (lowerInput.includes('memories')) {
+      const romanticText = ROMANTIC_MESSAGES[Math.floor(Math.random() * ROMANTIC_MESSAGES.length)];
+      setSessions(prev => prev.map(s => {
+        if (s.id === activeSessionId) {
+          return { 
+            ...s, 
+            messages: [
+              ...s.messages, 
+              { role: 'user', content: currentInput },
+              { role: 'model', content: romanticText, memoriesMedia: MEMORIES_MEDIA }
+            ] 
+          };
+        }
+        return s;
+      }));
+      setInput('');
+      return;
+    }
 
     const currentInput = input;
     const currentAttachment = attachment;
@@ -679,84 +690,6 @@ export default function ArtixClone() {
         </div>
       )}
 
-      {/* MEMORIES GALLERY */}
-      {memoriesActive && (
-        <div className="fixed inset-0 z-[7000] bg-black flex flex-col animate-in fade-in duration-700 overflow-hidden">
-          {/* Header */}
-          <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black via-black/80 to-transparent z-50">
-            <div className="flex items-center space-x-3">
-              <Heart className="text-rose-500 fill-rose-500 animate-pulse" size={28} />
-              <span className="text-2xl font-light tracking-[0.3em] text-white uppercase">Our Memories</span>
-            </div>
-            <button onClick={() => setMemoriesActive(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
-              <X size={24} className="text-white/70 hover:text-white" />
-            </button>
-          </div>
-          
-          {/* Romantic Message */}
-          <div className="w-full pt-28 pb-8 px-6 text-center">
-            <div className="max-w-2xl mx-auto">
-              <Sparkles className="text-rose-400 mx-auto mb-4 animate-pulse" size={32} />
-              <p className="text-lg sm:text-xl text-rose-100/90 font-light leading-relaxed italic">
-                "{romanticMessage}"
-              </p>
-              <div className="mt-4 flex items-center justify-center gap-2">
-                <span className="w-12 h-px bg-rose-500/30"></span>
-                <Heart className="text-rose-500 fill-rose-500" size={12} />
-                <span className="w-12 h-px bg-rose-500/30"></span>
-              </div>
-            </div>
-          </div>
-
-          {/* Photo/Video Gallery */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-10 pb-20">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-w-7xl mx-auto">
-              {MEMORIES_MEDIA.map((item, index) => (
-                <div 
-                  key={index} 
-                  className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900 border border-rose-500/10 shadow-xl hover:shadow-rose-500/20 hover:scale-[1.03] transition-all duration-500"
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  {item.type === 'video' ? (
-                    <>
-                      <video 
-                        src={item.src} 
-                        autoPlay 
-                        loop 
-                        muted 
-                        playsInline 
-                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
-                      />
-                      <div className="absolute top-3 right-3 p-1.5 bg-black/60 rounded-full backdrop-blur-sm z-20">
-                        <Film size={14} className="text-rose-400" />
-                      </div>
-                    </>
-                  ) : (
-                    <img 
-                      src={item.src} 
-                      alt={`Memory ${index + 1}`}
-                      className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bottom gradient fade */}
-          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
-          
-          {/* Floating hearts decoration */}
-          <div className="absolute bottom-10 left-10 opacity-20 pointer-events-none">
-            <Heart className="text-rose-500 fill-rose-500 animate-pulse" size={40} />
-          </div>
-          <div className="absolute bottom-20 right-16 opacity-10 pointer-events-none">
-            <Heart className="text-rose-500 fill-rose-500 animate-pulse" size={60} />
-          </div>
-        </div>
-      )}
-
       {/* HAFSA GLITCH */}
       {glitchMessage && ( <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95"><div className="text-7xl sm:text-9xl animate-pulse text-red-500 font-extrabold tracking-widest text-center shadow-2xl">{glitchMessage}</div></div> )}
 
@@ -779,7 +712,7 @@ export default function ArtixClone() {
       )}
 
       {/* --- APP LAYOUT --- */}
-      <div className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive || cr7Active || memoriesActive ? 'hidden' : 'relative'}`} style={glitchActive ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } : {}}>
+      <div className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive || cr7Active ? 'hidden' : 'relative'}`} style={glitchActive ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } : {}}>
         
         {/* SIDEBAR */}
         <div ref={sidebarRef} className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
@@ -810,7 +743,31 @@ export default function ArtixClone() {
                       {msg.image && (<div className="relative rounded-xl overflow-hidden border border-white/10 w-full sm:w-64"><img src={msg.image} className="w-full h-auto" /></div>)}
                       {msg.generatedImage && (<div className="relative rounded-xl overflow-hidden border border-emerald-500/30 w-full sm:w-80 group/img"><img src={msg.generatedImage} className="w-full h-auto" /><div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity"><a href={msg.generatedImage} download="artix-gen.png" className="p-2 bg-black/50 backdrop-blur rounded-full text-white hover:bg-emerald-500"><Download size={14} /></a></div></div>)}
                       {msg.threeDPrompt && (<ThreeDGenerator prompt={msg.threeDPrompt} />)}
-                      {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={5} />)}</div>)}
+                      {msg.content && (<div className={`relative rounded-2xl p-4 sm:p-6 shadow-xl transition-all duration-200 ${msg.role === 'user' ? 'bg-zinc-900/80 text-zinc-100 border border-white/5 backdrop-blur-sm' : msg.memoriesMedia ? 'bg-gradient-to-br from-rose-950/20 to-black text-zinc-200 border border-rose-500/20' : 'bg-white/[0.02] text-zinc-200 border border-white/5 hover:bg-white/[0.04]'}`}>{msg.role === 'system' ? (<div className="font-mono text-[10px] text-emerald-500/50 flex items-center gap-2 select-none"><Activity size={10} /><span>SYSTEM_LOG: {msg.content}</span></div>) : (<Typewriter text={msg.content} speed={5} />)}</div>)}
+                      {msg.memoriesMedia && (
+                        <div className="mt-3 space-y-3">
+                          <div className="flex items-center gap-2 text-rose-400 px-1">
+                            <Heart size={14} className="fill-rose-400 animate-pulse" />
+                            <span className="text-[10px] font-medium uppercase tracking-widest">Our Memories Together</span>
+                            <Heart size={14} className="fill-rose-400 animate-pulse" />
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                            {msg.memoriesMedia.map((item, mediaIdx) => (
+                              <div key={mediaIdx} className="group/media relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-rose-500/20 hover:border-rose-500/50 transition-all duration-300 hover:scale-[1.03] shadow-lg hover:shadow-rose-500/10">
+                                {item.type === 'video' ? (
+                                  <>
+                                    <video src={item.src} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                                    <div className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full backdrop-blur-sm"><Film size={10} className="text-rose-400" /></div>
+                                  </>
+                                ) : (
+                                  <img src={item.src} alt={`Memory ${mediaIdx + 1}`} className="w-full h-full object-cover group-hover/media:scale-105 transition-transform duration-500" />
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover/media:opacity-100 transition-opacity" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
