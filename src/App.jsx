@@ -42,6 +42,35 @@ const ALBUM_MEDIA = [
   { type: 'video', src: '/video4.mp4' },
 ];
 
+// --- MEMORIES MEDIA (Your special photos & videos) ---
+const MEMORIES_MEDIA = [
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/96a32530-8673-49a8-861b-7d749ca0e867-m4uCyWM20INSbg6aaXmtISxKCa0kRn.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/a40f936b-3b83-410d-a3e3-b274d7193d50-n243TUfGIPG2AMQRUIrWMiP7tU0Hbd.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1b59537c-ca19-42d1-8380-52ccdf6950eb-AsfXEPUQRotJQOBTNFkcYKWKlrFoXU.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/9f150f93-f512-4106-aac8-8a73d2dc60e9-kXbLA8ZwuwFxKq7bWqrjZAObZQLLBw.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/52fb2e20-b4e6-477f-ade5-9871caed9647-3KNm8QUJuLuf4xynquWSC7NSPbfOy6.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/IMG_9238.JPG-qwgBR1oSKushhBj2M1amKSaftqHEKb.jpeg' },
+  { type: 'video', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1e88befc-7301-4c7c-a4b4-4b6d1ebe9c8e-Mjw9CrKCxa0afUBOh0eLi3K4GNQpOQ.mp4' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/c0d95881-e370-4660-bec7-3818749e7d9d-CxNFGLTeSKwulsyUJ3NpXNjsC1Q4nq.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/9a1547b6-771d-4cfd-ab7a-e85f853e71e4-wsCACbCK4zJi7dSpYKYnrWn365kmRi.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1d30167f-a102-43d8-9a82-983836b83780-mq1I1uB0Ku5a7zmymU57rjHFSyr0H2.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/26674418-9286-4047-9cae-9e8a2c29fa3a-P7CFQNe78XWmimt4nj7bWoYvTvgaOy.jpg' },
+  { type: 'video', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/64f5fe08-8ebb-4328-8b46-d0cdd38c1c9c-Aalx9a0FlMvQDQVCysENW3LL0NTH0g.mp4' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ac7f75e2-2198-4250-9426-6dfaf02d2f44-9ot9bYoLD9LRjOGmP9Y1zSHKATFRf3.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ca301fa2-c716-4fbd-b514-fdc1ebc8132f-omDRcU2yafWztAOJkpqZA9UqQBtMHq.jpg' },
+  { type: 'image', src: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1ededd98-49c7-454c-bc54-409d65a9a8fa-nGLeXPzWRQBgRZZ6fW3CbG9NACgWdW.jpg' },
+];
+
+// --- ROMANTIC MESSAGES FOR MEMORIES ---
+const ROMANTIC_MESSAGES = [
+  "Every moment with you feels like a beautiful dream I never want to wake up from. You are my favorite adventure, my greatest love, and my best friend.",
+  "In your eyes, I found my home. In your heart, I found my love. In your soul, I found my mate. With you, I found my everything.",
+  "You are the reason I believe in magic. Every smile, every laugh, every moment we share is a treasure I hold close to my heart.",
+  "If I had a flower for every time you made me smile, I would have an endless garden. Thank you for being you.",
+  "They say home is where the heart is. My heart is wherever you are. You are my home, my love, my forever.",
+  "Looking at these photos, I realize how lucky I am to have someone who makes ordinary moments feel extraordinary.",
+];
+
 // --- PROTOCOLS ---
 const CANVAS_PROTOCOL = `
 [PROTOCOL: CANVAS]
@@ -443,6 +472,8 @@ export default function ArtixClone() {
   const [artixActive, setArtixActive] = useState(false);
   const [muahActive, setMuahActive] = useState(false);
   const [cr7Active, setCr7Active] = useState(false); // CR7 STATE
+  const [memoriesActive, setMemoriesActive] = useState(false); // MEMORIES STATE
+  const [romanticMessage, setRomanticMessage] = useState('');
   
   // --- MULTIPLAYER PONG STATE ---
   const [pongActive, setPongActive] = useState(false);
@@ -510,8 +541,14 @@ export default function ArtixClone() {
         setInput('');
     }
     // CR7 TRIGGER
-    else if (lowerVal.includes('cr7') && !cr7Active && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive) {
+    else if (lowerVal.includes('cr7') && !cr7Active && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive && !memoriesActive) {
         setCr7Active(true);
+        setInput('');
+    }
+    // MEMORIES TRIGGER
+    else if (lowerVal.includes('memories') && !memoriesActive && !cr7Active && !muahActive && !artixActive && !parisActive && !glitchActive && !gravityActive && !pongActive) {
+        setMemoriesActive(true);
+        setRomanticMessage(ROMANTIC_MESSAGES[Math.floor(Math.random() * ROMANTIC_MESSAGES.length)]);
         setInput('');
     }
   };
@@ -578,6 +615,7 @@ export default function ArtixClone() {
     if (lowerInput.includes('artix') && !artixActive) { setArtixActive(true); setInput(''); return; }
     if (lowerInput.includes('muah') && !muahActive) { setMuahActive(true); setInput(''); return; }
     if (lowerInput.includes('cr7') && !cr7Active) { setCr7Active(true); setInput(''); return; }
+    if (lowerInput.includes('memories') && !memoriesActive) { setMemoriesActive(true); setRomanticMessage(ROMANTIC_MESSAGES[Math.floor(Math.random() * ROMANTIC_MESSAGES.length)]); setInput(''); return; }
 
     const currentInput = input;
     const currentAttachment = attachment;
@@ -641,6 +679,84 @@ export default function ArtixClone() {
         </div>
       )}
 
+      {/* MEMORIES GALLERY */}
+      {memoriesActive && (
+        <div className="fixed inset-0 z-[7000] bg-black flex flex-col animate-in fade-in duration-700 overflow-hidden">
+          {/* Header */}
+          <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black via-black/80 to-transparent z-50">
+            <div className="flex items-center space-x-3">
+              <Heart className="text-rose-500 fill-rose-500 animate-pulse" size={28} />
+              <span className="text-2xl font-light tracking-[0.3em] text-white uppercase">Our Memories</span>
+            </div>
+            <button onClick={() => setMemoriesActive(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
+              <X size={24} className="text-white/70 hover:text-white" />
+            </button>
+          </div>
+          
+          {/* Romantic Message */}
+          <div className="w-full pt-28 pb-8 px-6 text-center">
+            <div className="max-w-2xl mx-auto">
+              <Sparkles className="text-rose-400 mx-auto mb-4 animate-pulse" size={32} />
+              <p className="text-lg sm:text-xl text-rose-100/90 font-light leading-relaxed italic">
+                "{romanticMessage}"
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <span className="w-12 h-px bg-rose-500/30"></span>
+                <Heart className="text-rose-500 fill-rose-500" size={12} />
+                <span className="w-12 h-px bg-rose-500/30"></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Photo/Video Gallery */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-10 pb-20">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-w-7xl mx-auto">
+              {MEMORIES_MEDIA.map((item, index) => (
+                <div 
+                  key={index} 
+                  className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900 border border-rose-500/10 shadow-xl hover:shadow-rose-500/20 hover:scale-[1.03] transition-all duration-500"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  {item.type === 'video' ? (
+                    <>
+                      <video 
+                        src={item.src} 
+                        autoPlay 
+                        loop 
+                        muted 
+                        playsInline 
+                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
+                      />
+                      <div className="absolute top-3 right-3 p-1.5 bg-black/60 rounded-full backdrop-blur-sm z-20">
+                        <Film size={14} className="text-rose-400" />
+                      </div>
+                    </>
+                  ) : (
+                    <img 
+                      src={item.src} 
+                      alt={`Memory ${index + 1}`}
+                      className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom gradient fade */}
+          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
+          
+          {/* Floating hearts decoration */}
+          <div className="absolute bottom-10 left-10 opacity-20 pointer-events-none">
+            <Heart className="text-rose-500 fill-rose-500 animate-pulse" size={40} />
+          </div>
+          <div className="absolute bottom-20 right-16 opacity-10 pointer-events-none">
+            <Heart className="text-rose-500 fill-rose-500 animate-pulse" size={60} />
+          </div>
+        </div>
+      )}
+
       {/* HAFSA GLITCH */}
       {glitchMessage && ( <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95"><div className="text-7xl sm:text-9xl animate-pulse text-red-500 font-extrabold tracking-widest text-center shadow-2xl">{glitchMessage}</div></div> )}
 
@@ -663,7 +779,7 @@ export default function ArtixClone() {
       )}
 
       {/* --- APP LAYOUT --- */}
-      <div className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive || cr7Active ? 'hidden' : 'relative'}`} style={glitchActive ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } : {}}>
+      <div className={`flex h-full w-full ${glitchMessage || daysCounter !== null || artixActive || muahActive || cr7Active || memoriesActive ? 'hidden' : 'relative'}`} style={glitchActive ? { filter: 'blur(3px) contrast(2) saturate(4) hue-rotate(10deg)', opacity: 0.2, transition: 'filter 0.3s, opacity 0.3s' } : {}}>
         
         {/* SIDEBAR */}
         <div ref={sidebarRef} className={`fixed md:relative z-[90] h-full bg-[#030303] border-r border-white/5 flex flex-col transition-all duration-300 ease-out ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'} pt-[env(safe-area-inset-top)]`}>
