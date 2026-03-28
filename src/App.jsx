@@ -81,7 +81,12 @@ const SYSTEM_PROMPT_DEEP_THINK = `
 
 // --- API HANDLERS ---
 const generateResponse = async (history, userInput, attachment, isDeepThink) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    return "[SYSTEM ERROR]: API key is not configured. Please add VITE_GEMINI_API_KEY to your environment variables.";
+  }
+  
   const systemInstruction = isDeepThink ? SYSTEM_PROMPT_BASE + "\n" + SYSTEM_PROMPT_DEEP_THINK : SYSTEM_PROMPT_BASE;
   const contents = history.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] }));
   const currentParts = [{ text: userInput }];
@@ -90,16 +95,46 @@ const generateResponse = async (history, userInput, attachment, isDeepThink) => 
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents, systemInstruction: { parts: [{ text: systemInstruction }] } })
       }
     );
+    
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "System Warning: No coherence detected.";
-  } catch (error) { return `[SYSTEM ERROR]: ${error.message}`; }
+    
+    // Check for API errors
+    if (data.error) {
+      return `[API ERROR]: ${data.error.message || 'Unknown error occurred'}`;
+    }
+    
+    // Check for blocked content
+    if (data.promptFeedback?.blockReason) {
+      return `[CONTENT BLOCKED]: ${data.promptFeedback.blockReason}`;
+    }
+    
+    // Check for finish reason issues
+    const candidate = data.candidates?.[0];
+    if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+      if (candidate.finishReason === 'SAFETY') {
+        return "[SAFETY FILTER]: Response was blocked due to safety settings.";
+      }
+      if (candidate.finishReason === 'RECITATION') {
+        return "[RECITATION]: Response blocked due to potential copyrighted content.";
+      }
+    }
+    
+    const text = candidate?.content?.parts?.[0]?.text;
+    if (!text) {
+      return "[NO RESPONSE]: The model did not generate a response. Please try rephrasing your question.";
+    }
+    
+    return text;
+  } catch (error) { 
+    return `[SYSTEM ERROR]: ${error.message}`; 
+  }
 };
 
 const generateImage = async (prompt) => {
